@@ -5,3 +5,66 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  cedula    String   @unique
+  password  String
+  name      String
+  role      String   @default("ADMIN")
+  createdAt DateTime @default(now())
+}
+
+model PreUser {
+  id        String   @id @default(uuid())
+  cedula    String   @unique
+  email     String   @unique
+  name      String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Client {
+  id        String   @id @default(uuid())
+
+  name      String
+  cedula    String   @unique
+  address   String
+  birthDate DateTime
+
+  email     String   @unique
+  phone     String
+  phone2    String?
+
+  profileImage String?
+
+  createdAt DateTime @default(now())
+
+  bankAccounts  BankAccount[]
+  credentials   BankCredential?
+}
+
+model BankAccount {
+  id            String @id @default(uuid())
+
+  bankName      String
+  accountNumber String
+  accountType   String
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model BankCredential {
+  id        String @id @default(uuid())
+
+  username  String
+  password  String
+
+  clientId String @unique
+  client   Client @relation(fields: [clientId], references: [id])
+}
