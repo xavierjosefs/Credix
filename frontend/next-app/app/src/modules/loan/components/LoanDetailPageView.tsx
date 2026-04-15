@@ -3,7 +3,11 @@
 import { clearSession } from "@/app/src/modules/auth/services/session.service";
 import type { ClientLoanRecord } from "@/app/src/modules/client/types/client.types";
 import AppSidebar from "@/app/src/modules/dashboard/components/AppSidebar";
-import { getLoanByIdService } from "@/app/src/modules/loan/services/loan.service";
+import {
+  getLoanByIdService,
+  registerLoanPaymentService,
+} from "@/app/src/modules/loan/services/loan.service";
+import type { PaymentMethod } from "@/app/src/modules/loan/types/loan.types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -12,7 +16,15 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
   const router = useRouter();
   const [loan, setLoan] = useState<ClientLoanRecord | null>(null);
   const [loading, setLoading] = useState(true);
+  const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [paymentSuccess, setPaymentSuccess] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
+  const [customAmount, setCustomAmount] = useState("");
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState<
+    "FULL" | "INTEREST" | "CUSTOM"
+  >("FULL");
 
   useEffect(() => {
     let cancelled = false;
@@ -70,9 +82,51 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
     );
   }, [loan]);
 
+  const currentPaymentAmount = loan
+    ? selectedPaymentMode === "FULL"
+      ? loan.currentTotalDue
+      : selectedPaymentMode === "INTEREST"
+        ? loan.currentAccruedInterest
+        : Number.parseFloat(customAmount || "0") || 0
+    : 0;
+
   const handleExpiredSession = () => {
     clearSession();
     router.replace("/login");
+  };
+
+  const handleRegisterPayment = async () => {
+    if (!loan || loan.status === "PAID") {
+      return;
+    }
+
+    if (!Number.isFinite(currentPaymentAmount) || currentPaymentAmount <= 0) {
+      setPaymentSuccess(null);
+      setPaymentError("Debes indicar un monto de pago valido.");
+      return;
+    }
+
+    try {
+      setPaying(true);
+      setPaymentError(null);
+      setPaymentSuccess(null);
+
+      await registerLoanPaymentService(loan.id, {
+        amount: currentPaymentAmount,
+        method: paymentMethod,
+      });
+
+      const updatedLoan = await getLoanByIdService(loan.id);
+      setLoan(updatedLoan);
+      setCustomAmount("");
+      setPaymentSuccess("Pago registrado correctamente.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "No se pudo registrar el pago.";
+      setPaymentError(message);
+    } finally {
+      setPaying(false);
+    }
   };
 
   return (
@@ -87,7 +141,7 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
                 Prestamo
               </p>
               <h1 className="mt-1 text-[2rem] font-bold tracking-[-0.03em] text-[#102844]">
-                Detalle del Préstamo
+                Detalle del Prestamo
               </h1>
             </div>
 
@@ -134,20 +188,179 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
                 <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <MetricCard label="Referencia" value={formatLoanCode(loan.id)} />
                   <MetricCard label="Monto Inicial" value={formatCurrency(loan.principalAmount)} />
-                  <MetricCard label="Saldo Pendiente" value={formatCurrency(loan.remainingBalance)} accent />
+                  <MetricCard
+                    label="Saldo Pendiente"
+                    value={formatCurrency(loan.remainingBalance)}
+                    accent
+                  />
                   <MetricCard label="Total Adeudado" value={formatCurrency(loan.currentTotalDue)} />
                 </section>
 
-                <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+                <DetailCard title="Registrar Pago" featured>
+                  {loan.status === "PAID" ? (
+                    <div className="rounded-2xl border border-[#cce9c5] bg-[#f3fbf1] px-5 py-4 text-sm text-[#3d8b3d]">
+                      Este prestamo ya fue liquidado y no admite nuevos pagos.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="space-y-4">
+                        <div className="grid gap-3 lg:grid-cols-3">
+                          <PaymentOption
+                            title="Saldar completo"
+                            description={`Paga todo lo adeudado hoy: ${formatCurrency(loan.currentTotalDue)}`}
+                            active={selectedPaymentMode === "FULL"}
+                            onClick={() => setSelectedPaymentMode("FULL")}
+                          />
+                          <PaymentOption
+                            title="Pagar intereses"
+                            description={`Cubre solo el interes acumulado: ${formatCurrency(loan.currentAccruedInterest)}`}
+                            active={selectedPaymentMode === "INTEREST"}
+                            onClick={() => setSelectedPaymentMode("INTEREST")}
+                          />
+                          <PaymentOption
+                            title="Pago personalizado"
+                            description="Ingresa un monto manual para aplicarlo al prestamo."
+                            active={selectedPaymentMode === "CUSTOM"}
+                            onClick={() => setSelectedPaymentMode("CUSTOM")}
+                          />
+                        </div>
+
+                        <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+                          <div className="rounded-2xl bg-[#eef3f8] p-1">
+                            <p className="px-3 pb-2 pt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#7f91a6]">
+                              Metodo
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              <MethodButton
+                                label="Efectivo"
+                                active={paymentMethod === "CASH"}
+                                onClick={() => setPaymentMethod("CASH")}
+                              />
+                              <MethodButton
+                                label="Transferencia"
+                                active={paymentMethod === "TRANSFER"}
+                                onClick={() => setPaymentMethod("TRANSFER")}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="rounded-2xl border border-[#e1e8f1] bg-[#fbfcfe] px-4 py-4">
+                            <div className="flex items-center justify-between gap-4">
+                              <div>
+                                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#7f91a6]">
+                                  Monto a pagar
+                                </p>
+                                <p className="mt-2 text-[1.7rem] font-bold tracking-[-0.04em] text-[#102844]">
+                                  {formatCurrency(currentPaymentAmount)}
+                                </p>
+                              </div>
+
+                              {selectedPaymentMode === "CUSTOM" ? (
+                                <div className="w-full max-w-[280px]">
+                                  <input
+                                    type="text"
+                                    value={customAmount}
+                                    onChange={(event) =>
+                                      setCustomAmount(formatMoneyInput(event.target.value))
+                                    }
+                                    placeholder="0.00"
+                                    className="h-12 w-full rounded-2xl border border-[#d9e2ed] bg-white px-4 text-[1rem] text-[#25384f] outline-none transition placeholder:text-[#8f9db0] focus:border-[#bfd0e3] focus:ring-4 focus:ring-[#edf4fb]"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-[inset_0_0_0_1px_#e5ebf3]">
+                                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#8a9aaf]">
+                                    Tipo
+                                  </p>
+                                  <p className="mt-1 text-sm font-semibold text-[#24384f]">
+                                    {selectedPaymentMode === "FULL"
+                                      ? "Liquidacion total"
+                                      : "Solo intereses"}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {paymentError ? (
+                          <div className="rounded-2xl border border-[#f5caca] bg-[#fff5f5] px-4 py-3 text-sm text-[#c24141]">
+                            {paymentError}
+                          </div>
+                        ) : null}
+
+                        {paymentSuccess ? (
+                          <div className="rounded-2xl border border-[#cce9c5] bg-[#f3fbf1] px-4 py-3 text-sm text-[#3d8b3d]">
+                            {paymentSuccess}
+                          </div>
+                          ) : null}
+                      </div>
+
+                      <div className="grid gap-4 rounded-[22px] border border-[#d8e2ee] bg-[linear-gradient(180deg,_#173755_0%,_#18354d_100%)] p-5 text-white shadow-[0_16px_34px_rgba(16,40,68,0.18)] lg:grid-cols-[minmax(0,220px)_minmax(0,1fr)_auto] lg:items-center">
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#8fb2d6]">
+                            Resumen del pago
+                          </p>
+                          <p className="mt-2 text-[2.35rem] font-bold leading-none tracking-[-0.05em]">
+                            {formatCurrency(currentPaymentAmount)}
+                          </p>
+                        </div>
+
+                        <div className="mx-auto w-full max-w-[760px] rounded-2xl bg-white/6 px-5 py-4">
+                          <div className="grid gap-4 sm:grid-cols-3">
+                          <SummaryLine
+                            label="Saldo pendiente"
+                            value={formatCurrency(loan.remainingBalance)}
+                          />
+                          <SummaryLine
+                            label="Interes acumulado"
+                            value={formatCurrency(loan.currentAccruedInterest)}
+                          />
+                          <SummaryLine
+                            label="Metodo"
+                            value={paymentMethod === "CASH" ? "Efectivo" : "Transferencia"}
+                          />
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleRegisterPayment}
+                          disabled={paying || currentPaymentAmount <= 0}
+                          className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-[#63b649] px-6 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(99,182,73,0.24)] transition hover:bg-[#54a13c] disabled:cursor-not-allowed disabled:opacity-70 lg:w-auto"
+                        >
+                          {paying ? "Registrando pago..." : "Hacer pago"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </DetailCard>
+
+                <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
                   <div className="space-y-6">
-                    <DetailCard title="Información General">
+                    <DetailCard title="Informacion General">
                       <div className="grid gap-4 md:grid-cols-2">
-                        <InfoBlock label="Frecuencia" value={loan.frequency === "MONTHLY" ? "Mensual" : "Quincenal"} />
-                        <InfoBlock label="Estado" value={loan.status === "PAID" ? "Liquidado" : loan.status === "LATE" ? "En Mora" : "Activo"} />
-                        <InfoBlock label="Tasa de interés" value={`${loan.interestRate}%`} />
+                        <InfoBlock
+                          label="Frecuencia"
+                          value={loan.frequency === "MONTHLY" ? "Mensual" : "Quincenal"}
+                        />
+                        <InfoBlock
+                          label="Estado"
+                          value={
+                            loan.status === "PAID"
+                              ? "Liquidado"
+                              : loan.status === "LATE"
+                                ? "En Mora"
+                                : "Activo"
+                          }
+                        />
+                        <InfoBlock label="Tasa de interes" value={`${loan.interestRate}%`} />
                         <InfoBlock label="Fecha de inicio" value={formatDate(loan.startDate)} />
-                        <InfoBlock label="Último pago" value={formatDate(loan.lastPaymentDate)} />
-                        <InfoBlock label="Próximo vencimiento" value={formatDate(loan.nextDueDate)} />
+                        <InfoBlock label="Ultimo pago" value={formatDate(loan.lastPaymentDate)} />
+                        <InfoBlock
+                          label="Proximo vencimiento"
+                          value={formatDate(loan.nextDueDate)}
+                        />
                       </div>
                     </DetailCard>
 
@@ -158,7 +371,7 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
                             <tr>
                               <th className="px-4 py-4">Fecha</th>
                               <th className="px-4 py-4">Monto</th>
-                              <th className="px-4 py-4">Interés</th>
+                              <th className="px-4 py-4">Interes</th>
                               <th className="px-4 py-4">Capital</th>
                               <th className="px-4 py-4">Saldo</th>
                             </tr>
@@ -166,18 +379,31 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
                           <tbody className="bg-white">
                             {loan.payments.length === 0 ? (
                               <tr>
-                                <td colSpan={5} className="px-4 py-12 text-center text-sm text-[#7b8da2]">
+                                <td
+                                  colSpan={5}
+                                  className="px-4 py-12 text-center text-sm text-[#7b8da2]"
+                                >
                                   Este prestamo aun no tiene pagos registrados.
                                 </td>
                               </tr>
                             ) : (
                               loan.payments.map((payment) => (
                                 <tr key={payment.id} className="border-t border-[#edf1f6]">
-                                  <td className="px-4 py-4 text-sm text-[#52657c]">{formatDate(payment.paymentDate)}</td>
-                                  <td className="px-4 py-4 text-sm font-semibold text-[#24384f]">{formatCurrency(payment.amount)}</td>
-                                  <td className="px-4 py-4 text-sm text-[#52657c]">{formatCurrency(payment.interestPaid)}</td>
-                                  <td className="px-4 py-4 text-sm text-[#52657c]">{formatCurrency(payment.principalPaid)}</td>
-                                  <td className="px-4 py-4 text-sm text-[#52657c]">{formatCurrency(payment.remainingBalance)}</td>
+                                  <td className="px-4 py-4 text-sm text-[#52657c]">
+                                    {formatDate(payment.paymentDate)}
+                                  </td>
+                                  <td className="px-4 py-4 text-sm font-semibold text-[#24384f]">
+                                    {formatCurrency(payment.amount)}
+                                  </td>
+                                  <td className="px-4 py-4 text-sm text-[#52657c]">
+                                    {formatCurrency(payment.interestPaid)}
+                                  </td>
+                                  <td className="px-4 py-4 text-sm text-[#52657c]">
+                                    {formatCurrency(payment.principalPaid)}
+                                  </td>
+                                  <td className="px-4 py-4 text-sm text-[#52657c]">
+                                    {formatCurrency(payment.remainingBalance)}
+                                  </td>
                                 </tr>
                               ))
                             )}
@@ -190,10 +416,22 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
                   <div className="space-y-6">
                     <DetailCard title="Resumen Financiero">
                       <div className="space-y-4">
-                        <InfoBlock label="Interés acumulado actual" value={formatCurrency(loan.currentAccruedInterest)} />
-                        <InfoBlock label="Total pagado" value={formatCurrency(paymentSummary.totalPaid)} />
-                        <InfoBlock label="Pagado a interés" value={formatCurrency(paymentSummary.interestPaid)} />
-                        <InfoBlock label="Pagado a capital" value={formatCurrency(paymentSummary.principalPaid)} />
+                        <InfoBlock
+                          label="Interes acumulado actual"
+                          value={formatCurrency(loan.currentAccruedInterest)}
+                        />
+                        <InfoBlock
+                          label="Total pagado"
+                          value={formatCurrency(paymentSummary.totalPaid)}
+                        />
+                        <InfoBlock
+                          label="Pagado a interes"
+                          value={formatCurrency(paymentSummary.interestPaid)}
+                        />
+                        <InfoBlock
+                          label="Pagado a capital"
+                          value={formatCurrency(paymentSummary.principalPaid)}
+                        />
                       </div>
                     </DetailCard>
                   </div>
@@ -207,18 +445,44 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
   );
 }
 
-function MetricCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+function MetricCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
   return (
     <div className="rounded-2xl border border-[#dfe6ef] bg-white px-5 py-5 shadow-[0_12px_34px_rgba(29,46,77,0.05)]">
       <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#8a9aaf]">{label}</p>
-      <p className={`mt-3 text-[1.95rem] font-bold tracking-[-0.04em] ${accent ? "text-[#63b649]" : "text-[#24384f]"}`}>{value}</p>
+      <p
+        className={`mt-3 text-[1.95rem] font-bold tracking-[-0.04em] ${
+          accent ? "text-[#63b649]" : "text-[#24384f]"
+        }`}
+      >
+        {value}
+      </p>
     </div>
   );
 }
 
-function DetailCard({ title, children }: { title: string; children: React.ReactNode }) {
+function DetailCard({
+  title,
+  featured,
+  children,
+}: {
+  title: string;
+  featured?: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="rounded-[24px] border border-[#d8e2ee] bg-white shadow-[0_12px_34px_rgba(29,46,77,0.05)]">
+    <section
+      className={`rounded-[24px] border bg-white shadow-[0_12px_34px_rgba(29,46,77,0.05)] ${
+        featured ? "border-[#cfe3c8] shadow-[0_18px_40px_rgba(99,182,73,0.10)]" : "border-[#d8e2ee]"
+      }`}
+    >
       <div className="border-b border-[#e7edf5] px-6 py-5">
         <h2 className="text-[1.5rem] font-bold tracking-[-0.03em] text-[#102844]">{title}</h2>
       </div>
@@ -232,6 +496,66 @@ function InfoBlock({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-[#e7edf5] bg-[#fbfcfe] px-4 py-4">
       <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#7f91a6]">{label}</p>
       <p className="mt-2 break-words text-base font-semibold text-[#24384f]">{value}</p>
+    </div>
+  );
+}
+
+function PaymentOption({
+  title,
+  description,
+  active,
+  onClick,
+}: {
+  title: string;
+  description: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-2xl border px-4 py-4 text-left transition ${
+        active
+          ? "border-[#b8d6ae] bg-[#f4fbf1] shadow-[0_10px_22px_rgba(99,182,73,0.12)]"
+          : "border-[#e7edf5] bg-[#fbfcfe] hover:bg-white"
+      }`}
+    >
+      <p className="font-semibold text-[#24384f]">{title}</p>
+      <p className="mt-1 text-sm leading-6 text-[#6b7e95]">{description}</p>
+    </button>
+  );
+}
+
+function MethodButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-[14px] px-4 py-2 text-sm font-semibold transition ${
+        active
+          ? "bg-white text-[#102844] shadow-[0_8px_16px_rgba(16,40,68,0.08)]"
+          : "text-[#5d728c] hover:text-[#314861]"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function SummaryLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="text-center sm:text-left">
+      <p className="text-xs text-[#c8d8e8]">{label}</p>
+      <p className="mt-1 font-semibold text-white">{value}</p>
     </div>
   );
 }
@@ -260,4 +584,12 @@ function formatDate(dateString: string) {
 
 function formatLoanCode(loanId: string) {
   return `#PR-${loanId.slice(0, 4).toUpperCase()}`;
+}
+
+function formatMoneyInput(value: string) {
+  const normalized = value.replace(/[^\d.]/g, "");
+  const [integerPart = "", decimalPart = ""] = normalized.split(".");
+  return decimalPart.length > 0
+    ? `${integerPart}.${decimalPart.slice(0, 2)}`
+    : integerPart;
 }

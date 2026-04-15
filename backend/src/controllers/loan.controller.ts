@@ -9,7 +9,13 @@ import {
 
 export const createLoanController = async (req: Request, res: Response) => {
   try {
-    const result = await createLoan(req.body);
+    if (!req.user?.id) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
+    const result = await createLoan(req.body, req.user.id);
     return res.status(201).json({
       message: "Loan created successfully",
       data: result,
@@ -24,6 +30,12 @@ export const createLoanController = async (req: Request, res: Response) => {
 
 export const registerLoanPaymentController = async (req: Request, res: Response) => {
   try {
+    if (!req.user?.id) {
+      return res.status(401).json({
+        message: "Unauthorized",
+      });
+    }
+
     const loanId = normalizeRouteParam(req.params.loanId);
 
     if (!loanId) {
@@ -35,7 +47,7 @@ export const registerLoanPaymentController = async (req: Request, res: Response)
     const result = await registerLoanPayment({
       loanId,
       ...req.body,
-    });
+    }, req.user.id);
 
     return res.status(201).json({
       message: "Payment registered successfully",

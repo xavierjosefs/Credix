@@ -1,4 +1,9 @@
-import { LoanStatus, PaymentFrequency, Prisma } from "@prisma/client";
+import {
+  CashMovementType,
+  LoanStatus,
+  PaymentFrequency,
+  Prisma,
+} from "@prisma/client";
 import type { CreateLoanDto, GetLoansDto, RegisterLoanPaymentDto,} from "../dto/loan.dto.js";
 import prisma from "../prisma/prisma.js";
 
@@ -13,8 +18,8 @@ type LoanWithRelations = Prisma.LoanGetPayload<{
   };
 }>;
 
-export const createLoan = async (data: CreateLoanDto) => {
-  const { clientId, principalAmount, interestRate, frequency, startDate } = data;
+export const createLoan = async (data: CreateLoanDto, adminId: string) => {
+  const { clientId, principalAmount, interestRate, frequency, startDate, method } = data;
 
   if (principalAmount <= 0) {
     throw new Error("Principal amount must be greater than zero");
@@ -40,26 +45,42 @@ export const createLoan = async (data: CreateLoanDto) => {
 
   const nextDueDate = addDays(parsedStartDate, getPeriodDays(frequency));
 
-  return prisma.loan.create({
-    data: {
-      clientId,
-      principalAmount: roundMoney(principalAmount),
-      remainingBalance: roundMoney(principalAmount),
-      interestRate,
-      frequency,
-      startDate: parsedStartDate,
-      lastPaymentDate: parsedStartDate,
-      nextDueDate,
-      status: LoanStatus.ACTIVE,
-    },
-    include: {
-      client: true,
-      payments: {
-        orderBy: {
-          paymentDate: "desc",
+  return prisma.$transaction(async (tx) => {
+    const loan = await tx.loan.create({
+      data: {
+        clientId,
+        principalAmount: roundMoney(principalAmount),
+        remainingBalance: roundMoney(principalAmount),
+        interestRate,
+        frequency,
+        startDate: parsedStartDate,
+        lastPaymentDate: parsedStartDate,
+        nextDueDate,
+        status: LoanStatus.ACTIVE,
+      },
+      include: {
+        client: true,
+        payments: {
+          orderBy: {
+            paymentDate: "desc",
+          },
         },
       },
-    },
+    });
+
+    await tx.cashMovement.create({
+      data: {
+        type: CashMovementType.EXPENSE,
+        method,
+        amount: roundMoney(principalAmount),
+        description: "Prestamo otorgado",
+        loanId: loan.id,
+        clientId: loan.clientId,
+        adminId,
+      },
+    });
+
+    return loan;
   });
 };
 
@@ -105,8 +126,11 @@ export const getLoans = async (filters: GetLoansDto) => {
   return loans.map(enrichLoan);
 };
 
-export const registerLoanPayment = async (data: RegisterLoanPaymentDto) => {
-  const { loanId, amount, paymentDate } = data;
+export const registerLoanPayment = async (
+  data: RegisterLoanPaymentDto,
+  adminId: string
+) => {
+  const { loanId, amount, paymentDate, method } = data;
 
   if (amount <= 0) {
     throw new Error("Payment amount must be greater than zero");
@@ -200,6 +224,18 @@ export const registerLoanPayment = async (data: RegisterLoanPaymentDto) => {
         daysCalculated,
         paymentDate: effectivePaymentDate,
         loanId: loan.id,
+      },
+    });
+
+    await tx.cashMovement.create({
+      data: {
+        type: CashMovementType.INCOME,
+        method,
+        amount: roundMoney(amount),
+        description: "Pago de prestamo",
+        loanId: loan.id,
+        clientId: loan.clientId,
+        adminId,
       },
     });
 

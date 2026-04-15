@@ -1,5 +1,10 @@
 import { getAuthToken } from "@/app/src/modules/auth/services/session.service";
-import type { CreateLoanPayload, CreateLoanResponse } from "../types/loan.types";
+import type {
+  CreateLoanPayload,
+  CreateLoanResponse,
+  RegisterLoanPaymentPayload,
+  RegisterLoanPaymentResponse,
+} from "../types/loan.types";
 import type { ClientLoanRecord } from "@/app/src/modules/client/types/client.types";
 
 export async function createLoanService(
@@ -83,4 +88,34 @@ export async function getLoanByIdService(loanId: string): Promise<ClientLoanReco
   }
 
   return payload.data;
+}
+
+export async function registerLoanPaymentService(
+  loanId: string,
+  data: RegisterLoanPaymentPayload
+): Promise<RegisterLoanPaymentResponse> {
+  const token = getAuthToken();
+
+  if (!token) {
+    throw new Error("Tu sesion expiro. Inicia sesion nuevamente.");
+  }
+
+  const response = await fetch(`http://localhost:8000/loan/${loanId}/payments`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  const payload = (await response.json()) as RegisterLoanPaymentResponse & {
+    error?: string;
+  };
+
+  if (!response.ok) {
+    throw new Error(payload.error || payload.message || "No se pudo registrar el pago.");
+  }
+
+  return payload;
 }

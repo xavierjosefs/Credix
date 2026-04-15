@@ -10,7 +10,7 @@ import type { ClientRecord } from "@/app/src/modules/client/types/client.types";
 import { getClientsService } from "@/app/src/modules/client/services/client.service";
 import AppSidebar from "@/app/src/modules/dashboard/components/AppSidebar";
 import { useCreateLoan } from "@/app/src/modules/loan/hooks/useCreateLoan";
-import type { PaymentFrequency } from "@/app/src/modules/loan/types/loan.types";
+import type { PaymentFrequency, PaymentMethod } from "@/app/src/modules/loan/types/loan.types";
 import type { AuthUser } from "@/app/src/modules/types/auth.types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -37,6 +37,7 @@ export default function NewLoanPageView() {
     startDate: "",
     interestRate: "",
     frequency: "MONTHLY" as PaymentFrequency,
+    method: "CASH" as PaymentMethod,
   });
 
   useEffect(() => {
@@ -137,6 +138,7 @@ export default function NewLoanPageView() {
       interestRate: Number.parseFloat(form.interestRate),
       frequency: form.frequency,
       startDate: form.startDate,
+      method: form.method,
     });
 
     router.push(`/clients/${response.data.clientId}`);
@@ -343,6 +345,23 @@ export default function NewLoanPageView() {
                             label="Quincenal"
                             active={form.frequency === "BIWEEKLY"}
                             onClick={() => handleFieldChange("frequency", "BIWEEKLY")}
+                          />
+                        </div>
+                      </Field>
+                    </div>
+
+                    <div className="mt-6">
+                      <Field label="Método de Entrega">
+                        <div className="inline-flex rounded-2xl bg-[#eef3f8] p-1">
+                          <FrequencyButton
+                            label="Efectivo"
+                            active={form.method === "CASH"}
+                            onClick={() => handleFieldChange("method", "CASH")}
+                          />
+                          <FrequencyButton
+                            label="Transferencia"
+                            active={form.method === "TRANSFER"}
+                            onClick={() => handleFieldChange("method", "TRANSFER")}
                           />
                         </div>
                       </Field>

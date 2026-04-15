@@ -17,10 +17,12 @@ const primaryItems = [
   { label: "Dashboard", href: "/home", icon: GridIcon, match: ["/home"] },
   { label: "Clientes", href: "/clients", icon: UsersIcon, match: ["/clients"] },
   { label: "Prestamos", href: "/loans", icon: WalletIcon, match: ["/loans"] },
-  { label: "Caja", icon: CardIcon, match: ["/cash"] },
+  { label: "Caja", href: "/cash", icon: CardIcon, match: ["/cash"] },
 ];
 
-const secondaryItems = [{ label: "Configuracion", icon: CogIcon, match: ["/settings"] }];
+const secondaryItems = [
+  { label: "Configuracion", href: "/settings", icon: CogIcon, match: ["/settings"] },
+];
 
 export default function AppSidebar() {
   const pathname = usePathname();
@@ -79,6 +81,7 @@ export default function AppSidebar() {
               key={item.label}
               label={item.label}
               icon={item.icon}
+              href={item.href}
               active={item.match.some((prefix) => pathname.startsWith(prefix))}
             />
           ))}
