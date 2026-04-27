@@ -1,12 +1,15 @@
-import { LoanStatus, PaymentFrequency, PaymentMethod } from "@prisma/client";
+import { LoanStatus, LoanType, PaymentFrequency, PaymentMethod } from "@prisma/client";
 
 export interface CreateLoanDto {
   clientId: string;
   principalAmount: number;
   interestRate: number;
+  type?: LoanType;
+  installmentCount?: number;
   frequency: PaymentFrequency;
   startDate: string;
   method: PaymentMethod;
+  existingLoanId?: string;
 }
 
 export interface RegisterLoanPaymentDto {
@@ -14,6 +17,7 @@ export interface RegisterLoanPaymentDto {
   amount: number;
   paymentDate?: string;
   method: PaymentMethod;
+  interestDays?: number;
 }
 
 export interface GetLoansDto {

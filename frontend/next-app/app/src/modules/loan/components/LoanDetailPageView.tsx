@@ -7,6 +7,8 @@ import {
   getLoanByIdService,
   registerLoanPaymentService,
 } from "@/app/src/modules/loan/services/loan.service";
+import TablePagination from "@/app/src/modules/shared/components/TablePagination";
+import { usePagination } from "@/app/src/modules/shared/hooks/usePagination";
 import type { PaymentMethod } from "@/app/src/modules/loan/types/loan.types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -22,9 +24,13 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
   const [paymentSuccess, setPaymentSuccess] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
   const [customAmount, setCustomAmount] = useState("");
+  const [customInterestDays, setCustomInterestDays] = useState("");
   const [selectedPaymentMode, setSelectedPaymentMode] = useState<
     "FULL" | "INTEREST" | "CUSTOM"
   >("FULL");
+  const [selectedInterestMode, setSelectedInterestMode] = useState<
+    "REAL" | "FULL_PERIOD" | "CUSTOM"
+  >("REAL");
 
   useEffect(() => {
     let cancelled = false;
@@ -81,12 +87,29 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
       }
     );
   }, [loan]);
+  const paymentsPagination = usePagination(loan?.payments ?? [], 8);
+
+  const periodDays = loan ? getPeriodDays(loan.frequency) : 0;
+  const realInterestDays = loan ? diffInDays(loan.lastPaymentDate, new Date().toISOString()) : 0;
+  const customInterestDaysValue = Number.parseInt(customInterestDays || "0", 10) || 0;
+  const chargedInterestDays = loan
+    ? selectedInterestMode === "FULL_PERIOD"
+      ? periodDays
+      : selectedInterestMode === "CUSTOM"
+        ? customInterestDaysValue
+        : realInterestDays
+    : 0;
+  const interestToCharge = loan
+    ? selectedInterestMode === "REAL"
+      ? calculateLoanInterestPreview(loan)
+      : calculateLoanInterestPreview(loan, chargedInterestDays)
+    : 0;
 
   const currentPaymentAmount = loan
     ? selectedPaymentMode === "FULL"
-      ? loan.currentTotalDue
+      ? roundMoney(loan.remainingBalance + interestToCharge)
       : selectedPaymentMode === "INTEREST"
-        ? loan.currentAccruedInterest
+        ? interestToCharge
         : Number.parseFloat(customAmount || "0") || 0
     : 0;
 
@@ -106,20 +129,46 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
       return;
     }
 
+    if (selectedInterestMode === "CUSTOM") {
+      if (!Number.isInteger(customInterestDaysValue) || customInterestDaysValue <= 0) {
+        setPaymentSuccess(null);
+        setPaymentError("Debes indicar una cantidad valida de dias de interes.");
+        return;
+      }
+
+      if (loan && customInterestDaysValue > periodDays) {
+        setPaymentSuccess(null);
+        setPaymentError(
+          `Los dias de interes no pueden ser mayores a ${periodDays} para este prestamo.`
+        );
+        return;
+      }
+    }
+
     try {
       setPaying(true);
       setPaymentError(null);
       setPaymentSuccess(null);
 
-      await registerLoanPaymentService(loan.id, {
+      const paymentResponse = await registerLoanPaymentService(loan.id, {
         amount: currentPaymentAmount,
         method: paymentMethod,
+        ...(selectedInterestMode === "REAL" ? {} : { interestDays: chargedInterestDays }),
       });
 
       const updatedLoan = await getLoanByIdService(loan.id);
       setLoan(updatedLoan);
       setCustomAmount("");
+      setCustomInterestDays("");
+      setSelectedInterestMode("REAL");
       setPaymentSuccess("Pago registrado correctamente.");
+      router.push(
+        `/loans/${loan.id}/payments/${paymentResponse.data.payment.id}/receipt?${new URLSearchParams(
+          {
+            method: paymentMethod,
+          }
+        ).toString()}`
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "No se pudo registrar el pago.";
@@ -185,13 +234,18 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
               </section>
             ) : loan ? (
               <>
-                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                   <MetricCard label="Referencia" value={formatLoanCode(loan.id)} />
                   <MetricCard label="Monto Inicial" value={formatCurrency(loan.principalAmount)} />
                   <MetricCard
                     label="Saldo Pendiente"
                     value={formatCurrency(loan.remainingBalance)}
                     accent
+                  />
+                  <MetricCard
+                    label="Interes Acumulado"
+                    value={formatCurrency(loan.currentAccruedInterest)}
+                    warning
                   />
                   <MetricCard label="Total Adeudado" value={formatCurrency(loan.currentTotalDue)} />
                 </section>
@@ -207,13 +261,13 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
                         <div className="grid gap-3 lg:grid-cols-3">
                           <PaymentOption
                             title="Saldar completo"
-                            description={`Paga todo lo adeudado hoy: ${formatCurrency(loan.currentTotalDue)}`}
+                            description={`Paga todo lo adeudado segun el interes seleccionado: ${formatCurrency(roundMoney(loan.remainingBalance + interestToCharge))}`}
                             active={selectedPaymentMode === "FULL"}
                             onClick={() => setSelectedPaymentMode("FULL")}
                           />
                           <PaymentOption
                             title="Pagar intereses"
-                            description={`Cubre solo el interes acumulado: ${formatCurrency(loan.currentAccruedInterest)}`}
+                            description={`Cubre solo el interes a cobrar: ${formatCurrency(interestToCharge)}`}
                             active={selectedPaymentMode === "INTEREST"}
                             onClick={() => setSelectedPaymentMode("INTEREST")}
                           />
@@ -225,7 +279,53 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
                           />
                         </div>
 
-                        <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+                        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_220px_minmax(0,1fr)]">
+                          <div className="rounded-2xl border border-[#e1e8f1] bg-[#fbfcfe] px-4 py-4">
+                            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#7f91a6]">
+                              Dias de interes
+                            </p>
+                            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                              <InterestModeButton
+                                label={`Reales (${realInterestDays})`}
+                                active={selectedInterestMode === "REAL"}
+                                onClick={() => setSelectedInterestMode("REAL")}
+                              />
+                              <InterestModeButton
+                                label={`Periodo completo (${periodDays})`}
+                                active={selectedInterestMode === "FULL_PERIOD"}
+                                onClick={() => setSelectedInterestMode("FULL_PERIOD")}
+                              />
+                              <InterestModeButton
+                                label="Personalizado"
+                                active={selectedInterestMode === "CUSTOM"}
+                                onClick={() => setSelectedInterestMode("CUSTOM")}
+                              />
+                            </div>
+
+                            <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                              <p className="text-sm text-[#6b7e95]">
+                                Se cobraran <span className="font-semibold text-[#24384f]">{chargedInterestDays}</span>{" "}
+                                dias de interes en esta operacion.
+                              </p>
+
+                              {selectedInterestMode === "CUSTOM" ? (
+                                <div className="w-full md:w-[150px]">
+                                  <input
+                                    type="text"
+                                    value={customInterestDays}
+                                    onChange={(event) =>
+                                      setCustomInterestDays(
+                                        event.target.value.replace(/[^\d]/g, "").slice(0, 2)
+                                      )
+                                    }
+                                    placeholder="Dias"
+                                    className="h-11 w-full rounded-2xl border border-[#d9e2ed] bg-white px-4 text-sm text-[#25384f] outline-none transition placeholder:text-[#8f9db0] focus:border-[#bfd0e3] focus:ring-4 focus:ring-[#edf4fb]"
+                                  />
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+
                           <div className="rounded-2xl bg-[#eef3f8] p-1">
                             <p className="px-3 pb-2 pt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[#7f91a6]">
                               Metodo
@@ -313,8 +413,8 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
                             value={formatCurrency(loan.remainingBalance)}
                           />
                           <SummaryLine
-                            label="Interes acumulado"
-                            value={formatCurrency(loan.currentAccruedInterest)}
+                            label="Interes a cobrar"
+                            value={formatCurrency(interestToCharge)}
                           />
                           <SummaryLine
                             label="Metodo"
@@ -387,7 +487,7 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
                                 </td>
                               </tr>
                             ) : (
-                              loan.payments.map((payment) => (
+                              paymentsPagination.paginatedItems.map((payment) => (
                                 <tr key={payment.id} className="border-t border-[#edf1f6]">
                                   <td className="px-4 py-4 text-sm text-[#52657c]">
                                     {formatDate(payment.paymentDate)}
@@ -410,6 +510,18 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
                           </tbody>
                         </table>
                       </div>
+
+                      {loan.payments.length > 0 ? (
+                        <TablePagination
+                          currentPage={paymentsPagination.currentPage}
+                          totalPages={paymentsPagination.totalPages}
+                          totalItems={paymentsPagination.totalItems}
+                          pageSize={paymentsPagination.pageSize}
+                          itemLabel="pagos"
+                          onPrevious={paymentsPagination.goToPreviousPage}
+                          onNext={paymentsPagination.goToNextPage}
+                        />
+                      ) : null}
                     </DetailCard>
                   </div>
 
@@ -449,17 +561,19 @@ function MetricCard({
   label,
   value,
   accent,
+  warning,
 }: {
   label: string;
   value: string;
   accent?: boolean;
+  warning?: boolean;
 }) {
   return (
     <div className="rounded-2xl border border-[#dfe6ef] bg-white px-5 py-5 shadow-[0_12px_34px_rgba(29,46,77,0.05)]">
       <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#8a9aaf]">{label}</p>
       <p
         className={`mt-3 text-[1.95rem] font-bold tracking-[-0.04em] ${
-          accent ? "text-[#63b649]" : "text-[#24384f]"
+          warning ? "text-[#c78611]" : accent ? "text-[#63b649]" : "text-[#24384f]"
         }`}
       >
         {value}
@@ -515,14 +629,14 @@ function PaymentOption({
     <button
       type="button"
       onClick={onClick}
-      className={`w-full rounded-2xl border px-4 py-4 text-left transition ${
+      className={`payment-option w-full rounded-2xl border px-4 py-4 text-left transition ${
         active
-          ? "border-[#b8d6ae] bg-[#f4fbf1] shadow-[0_10px_22px_rgba(99,182,73,0.12)]"
+          ? "payment-option-active border-[#b8d6ae] bg-[#f4fbf1] shadow-[0_10px_22px_rgba(99,182,73,0.12)]"
           : "border-[#e7edf5] bg-[#fbfcfe] hover:bg-white"
       }`}
     >
-      <p className="font-semibold text-[#24384f]">{title}</p>
-      <p className="mt-1 text-sm leading-6 text-[#6b7e95]">{description}</p>
+      <p className="payment-option-title font-semibold text-[#24384f]">{title}</p>
+      <p className="payment-option-description mt-1 text-sm leading-6 text-[#6b7e95]">{description}</p>
     </button>
   );
 }
@@ -540,10 +654,34 @@ function MethodButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-[14px] px-4 py-2 text-sm font-semibold transition ${
+      className={`payment-method-button rounded-[14px] px-4 py-2 text-sm font-semibold transition ${
         active
-          ? "bg-white text-[#102844] shadow-[0_8px_16px_rgba(16,40,68,0.08)]"
+          ? "payment-method-button-active bg-white text-[#102844] shadow-[0_8px_16px_rgba(16,40,68,0.08)]"
           : "text-[#5d728c] hover:text-[#314861]"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function InterestModeButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-2xl border px-3 py-3 text-sm font-semibold transition ${
+        active
+          ? "border-[#b8d6ae] bg-[#f4fbf1] text-[#24411f] shadow-[0_10px_22px_rgba(99,182,73,0.10)]"
+          : "border-[#e7edf5] bg-white text-[#5d728c] hover:bg-[#f8fbfe] hover:text-[#314861]"
       }`}
     >
       {label}
@@ -592,4 +730,117 @@ function formatMoneyInput(value: string) {
   return decimalPart.length > 0
     ? `${integerPart}.${decimalPart.slice(0, 2)}`
     : integerPart;
+}
+
+function getPeriodDays(frequency: ClientLoanRecord["frequency"]) {
+  return frequency === "MONTHLY" ? 30 : 15;
+}
+
+function diffInDays(startDateString: string, endDateString: string) {
+  const startDate = new Date(startDateString);
+  const endDate = new Date(endDateString);
+
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return 0;
+  }
+
+  const diffMs = endDate.getTime() - startDate.getTime();
+
+  if (diffMs <= 0) {
+    return 0;
+  }
+
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+}
+
+function calculateLoanInterestPreview(
+  loan: ClientLoanRecord,
+  interestDaysOverride?: number
+) {
+  const segments = getInterestSegments(loan);
+
+  if (segments.length === 0) {
+    return calculateAccruedInterest(
+      loan.remainingBalance,
+      loan.interestRate,
+      loan.frequency,
+      interestDaysOverride ?? diffInDays(loan.lastPaymentDate, new Date().toISOString())
+    );
+  }
+
+  return roundMoney(
+    segments.reduce((sum, segment) => {
+      const accrualStart =
+        new Date(segment.startDate) > new Date(loan.lastPaymentDate)
+          ? segment.startDate
+          : loan.lastPaymentDate;
+
+      return (
+        sum +
+        calculateAccruedInterest(
+          segment.amount,
+          loan.interestRate,
+          loan.frequency,
+          interestDaysOverride ?? diffInDays(accrualStart, new Date().toISOString())
+        )
+      );
+    }, 0)
+  );
+}
+
+function calculateAccruedInterest(
+  remainingBalance: number,
+  interestRate: number,
+  frequency: ClientLoanRecord["frequency"],
+  daysElapsed: number
+) {
+  if (remainingBalance <= 0 || interestRate <= 0 || daysElapsed <= 0) {
+    return 0;
+  }
+
+  const periodInterest = remainingBalance * (interestRate / 100);
+  const dailyInterest = periodInterest / getPeriodDays(frequency);
+
+  return roundMoney(dailyInterest * daysElapsed);
+}
+
+function getInterestSegments(loan: ClientLoanRecord) {
+  const persistedSegments = (loan.segments ?? []).map((segment) => ({
+    id: segment.id,
+    amount: segment.amount,
+    startDate: segment.startDate,
+  }));
+
+  const persistedTotal = roundMoney(
+    persistedSegments.reduce((sum, segment) => sum + segment.amount, 0)
+  );
+  const missingBalance = roundMoney(Math.max(loan.remainingBalance - persistedTotal, 0));
+
+  if (missingBalance > 0) {
+    persistedSegments.unshift({
+      id: "fallback",
+      amount: missingBalance,
+      startDate: loan.startDate,
+    });
+  }
+
+  if (persistedSegments.length > 0) {
+    return persistedSegments;
+  }
+
+  if (loan.remainingBalance <= 0) {
+    return [];
+  }
+
+  return [
+    {
+      id: "fallback",
+      amount: loan.remainingBalance,
+      startDate: loan.startDate,
+    },
+  ];
+}
+
+function roundMoney(value: number) {
+  return Number(value.toFixed(2));
 }

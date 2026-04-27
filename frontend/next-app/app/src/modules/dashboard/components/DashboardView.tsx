@@ -13,7 +13,11 @@ import type {
   LoanPaymentRecord,
 } from "@/app/src/modules/client/types/client.types";
 import AppSidebar from "@/app/src/modules/dashboard/components/AppSidebar";
+import TablePagination from "@/app/src/modules/shared/components/TablePagination";
+import { usePagination } from "@/app/src/modules/shared/hooks/usePagination";
+import ThemeToggle from "@/app/src/modules/theme/components/ThemeToggle";
 import type { AuthUser } from "@/app/src/modules/types/auth.types";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
@@ -22,6 +26,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 type DashboardPaymentRow = LoanPaymentRecord & {
   clientName: string;
   clientInitials: string;
+  clientProfileImage?: string | null;
   loanCode: string;
   loanStatus: ClientLoanRecord["status"];
 };
@@ -35,6 +40,7 @@ export default function DashboardView() {
   ) as AuthUser | null;
   const [clients, setClients] = useState<ClientRecord[]>([]);
   const [loans, setLoans] = useState<ClientLoanRecord[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -86,6 +92,9 @@ export default function DashboardView() {
   const dashboardMetrics = useMemo(() => {
     const activeLoans = loans.filter((loan) => loan.status === "ACTIVE").length;
     const lateLoans = loans.filter((loan) => loan.status === "LATE").length;
+    const totalAccruedInterest = loans
+      .filter((loan) => loan.status !== "PAID")
+      .reduce((sum, loan) => sum + loan.currentAccruedInterest, 0);
     const todayCollections = loans
       .flatMap((loan) => loan.payments)
       .filter((payment) => isToday(payment.paymentDate))
@@ -95,6 +104,7 @@ export default function DashboardView() {
       activeLoans,
       todayCollections,
       lateLoans,
+      totalAccruedInterest,
       totalClients: clients.length,
       totalPendingBalance: loans
         .filter((loan) => loan.status !== "PAID")
@@ -113,6 +123,7 @@ export default function DashboardView() {
             ...payment,
             clientName: client?.name ?? "Cliente",
             clientInitials: getInitials(client?.name ?? "Cliente"),
+            clientProfileImage: client?.profileImage ?? null,
             loanCode: formatLoanCode(loan.id),
             loanStatus: loan.status,
           };
@@ -122,7 +133,7 @@ export default function DashboardView() {
         (left, right) =>
           new Date(right.paymentDate).getTime() - new Date(left.paymentDate).getTime()
       )
-      .slice(0, 6);
+      .slice(0, 20);
   }, [clients, loans]);
 
   const liveActions = useMemo(
@@ -150,9 +161,23 @@ export default function DashboardView() {
     ],
     [dashboardMetrics]
   );
+  const paymentsPagination = usePagination(recentPayments, 5);
 
   const userName = user?.name ?? "Usuario";
   const userEmail = user?.email ?? "Sin correo";
+
+  const handleDashboardSearch = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const trimmedQuery = searchQuery.trim();
+
+    if (!trimmedQuery) {
+      router.push("/clients");
+      return;
+    }
+
+    router.push(`/clients?${new URLSearchParams({ search: trimmedQuery }).toString()}`);
+  };
 
   return (
     <main className="bg-[#f4f7fb] text-[#1f3552] lg:h-screen lg:overflow-hidden">
@@ -161,22 +186,24 @@ export default function DashboardView() {
 
         <section className="flex-1 lg:overflow-y-auto">
           <header className="flex flex-col gap-3 border-b border-[#dfe6ef] bg-white px-4 py-4 sm:px-6 xl:flex-row xl:items-center xl:justify-between">
-            <div className="relative w-full max-w-[478px]">
-              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#92a1b5]">
-                <SearchIcon />
-              </span>
-              <input
-                type="text"
-                placeholder="Buscar clientes, folios o transacciones..."
-                className="h-12 w-full rounded-lg border border-[#dde5ef] bg-[#f8fafc] pl-11 pr-4 text-sm text-[#213650] outline-none transition placeholder:text-[#8f9fb1] focus:border-[#bfd0e3] focus:bg-white"
-              />
-            </div>
+            <form onSubmit={handleDashboardSearch} className="w-full max-w-[478px]">
+              <div className="relative">
+                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#92a1b5]">
+                  <SearchIcon />
+                </span>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Buscar clientes por nombre, cedula o correo..."
+                  className="h-12 w-full rounded-lg border border-[#dde5ef] bg-[#f8fafc] pl-11 pr-4 text-sm text-[#213650] outline-none transition placeholder:text-[#8f9fb1] focus:border-[#bfd0e3] focus:bg-white"
+                />
+              </div>
+            </form>
 
             <div className="flex items-center justify-between gap-3 xl:justify-end">
               <div className="flex items-center gap-2 text-[#304863]">
-                <button className="flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-[#f1f5f9]">
-                  <MoonIcon />
-                </button>
+                <ThemeToggle iconOnly />
                 <button className="relative flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-[#f1f5f9]">
                   <BellIcon />
                   {dashboardMetrics.lateLoans > 0 && (
@@ -226,7 +253,7 @@ export default function DashboardView() {
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_228px]">
               <div className="space-y-5">
-                <div className="grid gap-5 md:grid-cols-3">
+                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
                   <MetricCard
                     title="Prestamos Activos"
                     value={loading ? "..." : formatInteger(dashboardMetrics.activeLoans)}
@@ -247,6 +274,13 @@ export default function DashboardView() {
                     hint={dashboardMetrics.lateLoans > 0 ? "Pendientes" : "Al dia"}
                     hintTone={dashboardMetrics.lateLoans > 0 ? "danger" : "positive"}
                     iconTone="orange"
+                  />
+                  <MetricCard
+                    title="Intereses por Cobrar"
+                    value={loading ? "..." : formatCurrency(dashboardMetrics.totalAccruedInterest)}
+                    hint="Ganancia acumulada"
+                    hintTone="positive"
+                    iconTone="green"
                   />
                 </div>
 
@@ -288,13 +322,25 @@ export default function DashboardView() {
                             </td>
                           </tr>
                         ) : (
-                          recentPayments.map((payment) => (
+                          paymentsPagination.paginatedItems.map((payment) => (
                             <tr key={payment.id} className="border-t border-[#edf1f6]">
                               <td className="px-5 py-4">
                                 <div className="flex items-center gap-3">
-                                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eef2f7] text-xs font-bold text-[#7c8fa5]">
-                                    {payment.clientInitials}
-                                  </div>
+                                  {payment.clientProfileImage ? (
+                                    <div className="relative h-9 w-9 overflow-hidden rounded-full bg-[#eef2f7]">
+                                      <Image
+                                        src={payment.clientProfileImage}
+                                        alt={payment.clientName}
+                                        fill
+                                        className="object-cover"
+                                        unoptimized
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eef2f7] text-xs font-bold text-[#7c8fa5]">
+                                      {payment.clientInitials}
+                                    </div>
+                                  )}
                                   <span className="text-[1.05rem] font-semibold leading-6 text-[#344a65]">
                                     {payment.clientName}
                                   </span>
@@ -320,6 +366,18 @@ export default function DashboardView() {
                       </tbody>
                     </table>
                   </div>
+
+                  {!loading && recentPayments.length > 0 ? (
+                    <TablePagination
+                      currentPage={paymentsPagination.currentPage}
+                      totalPages={paymentsPagination.totalPages}
+                      totalItems={paymentsPagination.totalItems}
+                      pageSize={paymentsPagination.pageSize}
+                      itemLabel="pagos"
+                      onPrevious={paymentsPagination.goToPreviousPage}
+                      onNext={paymentsPagination.goToNextPage}
+                    />
+                  ) : null}
                 </section>
               </div>
 
@@ -504,14 +562,6 @@ function SearchIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
       <path d="M10 2a8 8 0 1 0 5 14.24l4.38 4.38 1.42-1.42-4.38-4.38A8 8 0 0 0 10 2Zm0 2a6 6 0 1 1-6 6 6 6 0 0 1 6-6Z" />
-    </svg>
-  );
-}
-
-function MoonIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
-      <path d="M12.7 2.05A8.5 8.5 0 1 0 21.95 11 7.5 7.5 0 0 1 12.7 2.05Z" />
     </svg>
   );
 }

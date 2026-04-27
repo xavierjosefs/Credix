@@ -1,10 +1,17 @@
 import type { Request, Response } from "express";
 import { createClient, getAllClients, getClient, getClientById, updateClient } from "../service/client.service.js";
-import type { GetClientDto } from "../dto/client.dto.js";
+import type { CreateClientDto, GetClientDto, UpdateClientDto } from "../dto/client.dto.js";
+import { uploadProfileImage } from "../service/upload.service.js";
 
 export const createClientController = async (req: Request, res: Response) => {
     try {
-        const result = await createClient(req.body);
+        const clientData = normalizeCreateClientPayload(req.body);
+
+        if (req.file) {
+            clientData.profileImage = await uploadProfileImage(req.file);
+        }
+
+        const result = await createClient(clientData);
         res.status(201).json({
             message: "Client created successfully",
             data: result
@@ -93,7 +100,13 @@ export const updateClientController = async (req: Request, res: Response) => {
             });
         }
 
-        const result = await updateClient(clientId, req.body);
+        const clientData = normalizeUpdateClientPayload(req.body);
+
+        if (req.file) {
+            clientData.profileImage = await uploadProfileImage(req.file);
+        }
+
+        const result = await updateClient(clientId, clientData);
         return res.status(200).json({
             message: "Client updated successfully",
             data: result
@@ -119,4 +132,34 @@ function normalizeRouteParam(value: string | string[] | undefined) {
     }
 
     return value;
+}
+
+function normalizeCreateClientPayload(body: Request["body"]): CreateClientDto {
+    return normalizeClientPayload(body);
+}
+
+function normalizeUpdateClientPayload(body: Request["body"]): UpdateClientDto {
+    return normalizeClientPayload(body);
+}
+
+function normalizeClientPayload(body: Request["body"]): CreateClientDto | UpdateClientDto {
+    const credentials =
+        typeof body.credentials === "string"
+            ? JSON.parse(body.credentials)
+            : body.credentials;
+
+    const bankAccounts =
+        typeof body.bankAccounts === "string"
+            ? JSON.parse(body.bankAccounts)
+            : body.bankAccounts;
+
+    return {
+        ...body,
+        credentials,
+        bankAccounts,
+        profileImage:
+            typeof body.profileImage === "string" && body.profileImage.trim().length > 0
+                ? body.profileImage
+                : undefined,
+    };
 }

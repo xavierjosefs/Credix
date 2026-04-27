@@ -7,6 +7,7 @@ import {
   getStoredUserServerSnapshot,
   subscribeStoredUser,
 } from "@/app/src/modules/auth/services/session.service";
+import ThemeToggle from "@/app/src/modules/theme/components/ThemeToggle";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -54,7 +55,7 @@ export default function AppSidebar() {
             height={112}
             className="h-auto w-28"
             priority
-          />
+          />il
         </div>
       </div>
 
@@ -98,6 +99,8 @@ export default function AppSidebar() {
             <p className="truncate text-xs text-[#8fa4b8]">{userRole}</p>
           </div>
         </div>
+
+        <ThemeToggle />
 
         <button
           type="button"

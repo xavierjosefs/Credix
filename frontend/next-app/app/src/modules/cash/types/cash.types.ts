@@ -3,6 +3,7 @@ export type PaymentMethod = "CASH" | "TRANSFER" | "UNKNOWN";
 
 export interface CashMovementRecord {
   id: string;
+  paymentId?: string | null;
   type: CashMovementType;
   method: PaymentMethod;
   amount: number;

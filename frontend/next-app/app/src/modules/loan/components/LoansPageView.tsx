@@ -1,9 +1,12 @@
 "use client";
 
 import { clearSession } from "@/app/src/modules/auth/services/session.service";
-import type { ClientLoanRecord, LoanStatus } from "@/app/src/modules/client/types/client.types";
+import type { ClientLoanRecord } from "@/app/src/modules/client/types/client.types";
 import AppSidebar from "@/app/src/modules/dashboard/components/AppSidebar";
 import { getLoansService } from "@/app/src/modules/loan/services/loan.service";
+import LoanStatusBadge from "@/app/src/modules/shared/components/LoanStatusBadge";
+import TablePagination from "@/app/src/modules/shared/components/TablePagination";
+import { usePagination } from "@/app/src/modules/shared/hooks/usePagination";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -13,6 +16,7 @@ export default function LoansPageView() {
   const [loans, setLoans] = useState<ClientLoanRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const loansPagination = usePagination(loans, 10);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +61,9 @@ export default function LoansPageView() {
     const totalCurrentDue = loans
       .filter((loan) => loan.status !== "PAID")
       .reduce((sum, loan) => sum + loan.currentTotalDue, 0);
+    const totalInterestDue = loans
+      .filter((loan) => loan.status !== "PAID")
+      .reduce((sum, loan) => sum + loan.currentAccruedInterest, 0);
 
     return {
       totalLoans: loans.length,
@@ -65,6 +72,7 @@ export default function LoansPageView() {
       paidLoans,
       totalOutstanding,
       totalCurrentDue,
+      totalInterestDue,
     };
   }, [loans]);
 
@@ -118,11 +126,16 @@ export default function LoansPageView() {
               </section>
             ) : null}
 
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
               <MetricCard label="Prestamos Totales" value={formatInteger(summary.totalLoans)} />
               <MetricCard label="Activos" value={formatInteger(summary.activeLoans)} accent />
               <MetricCard label="En Mora" value={formatInteger(summary.lateLoans)} danger />
               <MetricCard label="Saldo Pendiente" value={formatCurrency(summary.totalOutstanding)} />
+              <MetricCard
+                label="Interes Pendiente"
+                value={formatCurrency(summary.totalInterestDue)}
+                warning
+              />
               <MetricCard label="Total Adeudado" value={formatCurrency(summary.totalCurrentDue)} />
             </section>
 
@@ -160,7 +173,7 @@ export default function LoansPageView() {
                         </td>
                       </tr>
                     ) : (
-                      loans.map((loan) => (
+                      loansPagination.paginatedItems.map((loan) => (
                         <tr
                           key={loan.id}
                           onDoubleClick={() => router.push(`/loans/${loan.id}`)}
@@ -188,7 +201,7 @@ export default function LoansPageView() {
                             {formatDate(loan.nextDueDate)}
                           </td>
                           <td className="px-5 py-4">
-                            <StatusBadge status={loan.status} />
+                            <LoanStatusBadge status={loan.status} />
                           </td>
                         </tr>
                       ))
@@ -196,6 +209,18 @@ export default function LoansPageView() {
                   </tbody>
                 </table>
               </div>
+
+              {!loading && loans.length > 0 ? (
+                <TablePagination
+                  currentPage={loansPagination.currentPage}
+                  totalPages={loansPagination.totalPages}
+                  totalItems={loansPagination.totalItems}
+                  pageSize={loansPagination.pageSize}
+                  itemLabel="prestamos"
+                  onPrevious={loansPagination.goToPreviousPage}
+                  onNext={loansPagination.goToNextPage}
+                />
+              ) : null}
             </section>
           </div>
         </section>
@@ -209,17 +234,21 @@ function MetricCard({
   value,
   accent,
   danger,
+  warning,
 }: {
   label: string;
   value: string;
   accent?: boolean;
   danger?: boolean;
+  warning?: boolean;
 }) {
   const valueClassName = danger
     ? "text-[#ef4444]"
-    : accent
-      ? "text-[#63b649]"
-      : "text-[#24384f]";
+    : warning
+      ? "text-[#c78611]"
+      : accent
+        ? "text-[#63b649]"
+        : "text-[#24384f]";
 
   return (
     <div className="rounded-2xl border border-[#dfe6ef] bg-white px-5 py-5 shadow-[0_12px_34px_rgba(29,46,77,0.05)]">
@@ -227,19 +256,6 @@ function MetricCard({
       <p className={`mt-3 text-[1.95rem] font-bold tracking-[-0.04em] ${valueClassName}`}>{value}</p>
     </div>
   );
-}
-
-function StatusBadge({ status }: { status: LoanStatus }) {
-  const styles =
-    status === "PAID"
-      ? "bg-[#eef8ed] text-[#4f9938]"
-      : status === "LATE"
-        ? "bg-[#ffe8e8] text-[#ef4444]"
-        : "bg-[#edf4ff] text-[#2563eb]";
-
-  const label = status === "PAID" ? "Liquidado" : status === "LATE" ? "En Mora" : "Activo";
-
-  return <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${styles}`}>{label}</span>;
 }
 
 function formatCurrency(value: number) {

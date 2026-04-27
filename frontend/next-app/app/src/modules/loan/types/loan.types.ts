@@ -1,13 +1,17 @@
 export type PaymentFrequency = "MONTHLY" | "BIWEEKLY";
 export type PaymentMethod = "CASH" | "TRANSFER";
+export type LoanType = "FLEXIBLE" | "INSTALLMENT";
 
 export interface CreateLoanPayload {
   clientId: string;
   principalAmount: number;
   interestRate: number;
+  type?: LoanType;
+  installmentCount?: number;
   frequency: PaymentFrequency;
   startDate: string;
   method: PaymentMethod;
+  existingLoanId?: string;
 }
 
 export interface CreateLoanResponse {
@@ -18,6 +22,7 @@ export interface CreateLoanResponse {
     principalAmount: number;
     remainingBalance: number;
     interestRate: number;
+    type: LoanType;
     frequency: PaymentFrequency;
     startDate: string;
     nextDueDate: string;
@@ -29,6 +34,7 @@ export interface RegisterLoanPaymentPayload {
   amount: number;
   method: PaymentMethod;
   paymentDate?: string;
+  interestDays?: number;
 }
 
 export interface RegisterLoanPaymentResponse {

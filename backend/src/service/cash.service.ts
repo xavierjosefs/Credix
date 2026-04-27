@@ -65,6 +65,13 @@ export const getCashMovements = async (filters: GetCashMovementsDto) => {
     }),
   ]);
 
+  const paymentIdByKey = new Map(
+    legacyPayments.map((payment) => [
+      buildMovementKey(payment.loanId, payment.amount, payment.paymentDate),
+      payment.id,
+    ])
+  );
+
   const existingIncomeKeys = new Set(
     cashMovements
       .filter((movement) => movement.type === "INCOME" && movement.loanId)
@@ -88,6 +95,7 @@ export const getCashMovements = async (filters: GetCashMovementsDto) => {
     })
     .map((payment) => ({
       id: `legacy-payment-${payment.id}`,
+      paymentId: payment.id,
       type: "INCOME" as const,
       method: "UNKNOWN" as const,
       amount: payment.amount,
@@ -110,6 +118,7 @@ export const getCashMovements = async (filters: GetCashMovementsDto) => {
     })
     .map((loan) => ({
       id: `legacy-loan-${loan.id}`,
+      paymentId: null,
       type: "EXPENSE" as const,
       method: "UNKNOWN" as const,
       amount: loan.principalAmount,
@@ -125,11 +134,21 @@ export const getCashMovements = async (filters: GetCashMovementsDto) => {
       admin: null,
     }));
 
-  return [...cashMovements, ...synthesizedPaymentMovements, ...synthesizedLoanMovements].sort(
-    (firstMovement, secondMovement) =>
-      new Date(secondMovement.createdAt).getTime() -
-      new Date(firstMovement.createdAt).getTime()
-  );
+  const normalizedCashMovements = cashMovements.map((movement) => ({
+    ...movement,
+    paymentId:
+      movement.type === "INCOME" && movement.loanId
+        ? paymentIdByKey.get(buildMovementKey(movement.loanId, movement.amount, movement.createdAt)) ??
+          null
+        : null,
+  }));
+
+  return [...normalizedCashMovements, ...synthesizedPaymentMovements, ...synthesizedLoanMovements]
+    .sort(
+      (firstMovement, secondMovement) =>
+        new Date(secondMovement.createdAt).getTime() -
+        new Date(firstMovement.createdAt).getTime()
+    );
 };
 
 function buildMovementKey(loanId: string, amount: number, date: Date) {

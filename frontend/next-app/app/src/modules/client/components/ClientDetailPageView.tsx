@@ -7,8 +7,14 @@ import {
   getClientLoansService,
   updateClientService,
 } from "@/app/src/modules/client/services/client.service";
+import Image from "next/image";
+import LoanStatusBadge from "@/app/src/modules/shared/components/LoanStatusBadge";
+import TablePagination from "@/app/src/modules/shared/components/TablePagination";
+import { usePagination } from "@/app/src/modules/shared/hooks/usePagination";
 import type {
   ClientBankAccountInput,
+  ClientCredentialBank,
+  ClientInstitution,
   ClientLoanRecord,
   ClientRecord,
   LoanStatus,
@@ -16,10 +22,24 @@ import type {
 } from "@/app/src/modules/client/types/client.types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 
-const bankOptions = ["Banreservas", "Banco Popular", "BHD", "Scotiabank", "Asociacion Popular"];
+const bankOptions = [
+  "Banreservas",
+  "Banco Popular",
+  "BHD",
+  "Banco Caribe",
+  "Scotiabank",
+  "Asociacion Popular",
+];
 const accountTypeOptions = ["Ahorros", "Corriente"];
+const phoneCompanyOptions = ["Claro", "Altice", "Viva", "Otra"];
+const credentialBankOptions: Array<{ value: ClientCredentialBank; label: string }> = [
+  { value: "BANRESERVAS", label: "Banreservas" },
+  { value: "POPULAR", label: "Banco Popular" },
+  { value: "BHD", label: "BHD" },
+  { value: "CARIBE", label: "Banco Caribe" },
+];
 const inputClassName =
   "h-12 w-full rounded-2xl border border-[#d9e2ed] bg-white px-4 text-[1rem] text-[#25384f] outline-none transition placeholder:text-[#8f9db0] focus:border-[#bfd0e3] focus:ring-4 focus:ring-[#edf4fb]";
 
@@ -33,10 +53,22 @@ type ClientEditFormState = {
   email: string;
   phone: string;
   phone2: string;
+  phoneCompany: string;
+  institution: ClientInstitution;
+  credentialBank: ClientCredentialBank;
   username: string;
   password: string;
   bankAccounts: BankAccountFormItem[];
 };
+
+const institutionOptions: Array<{ value: ClientInstitution; label: string }> = [
+  { value: "POLICIA", label: "Policia" },
+  { value: "PENSIONADO", label: "Pensionado" },
+  { value: "EDUCACION", label: "Educacion" },
+  { value: "MEDICO", label: "Medico" },
+  { value: "GUARDIA", label: "Guardia" },
+  { value: "PARTICULAR", label: "Particular" },
+];
 
 export default function ClientDetailPageView({ clientId }: { clientId: string }) {
   const router = useRouter();
@@ -46,9 +78,13 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [isImageOpen, setIsImageOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<ClientEditFormState | null>(null);
+  const [editProfileImagePreview, setEditProfileImagePreview] = useState<string | null>(null);
+  const [editProfileImageFile, setEditProfileImageFile] = useState<File | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +103,8 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
           setClient(clientData);
           setLoans(loansData);
           setEditForm(buildEditForm(clientData));
+          setEditProfileImagePreview(clientData.profileImage ?? null);
+          setEditProfileImageFile(null);
         }
       } catch (error) {
         const message =
@@ -89,6 +127,14 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
     };
   }, [clientId]);
 
+  useEffect(() => {
+    return () => {
+      if (editProfileImagePreview?.startsWith("blob:")) {
+        URL.revokeObjectURL(editProfileImagePreview);
+      }
+    };
+  }, [editProfileImagePreview]);
+
   const loanSummary = useMemo(() => {
     const pendingLoans = loans.filter((loan) => loan.status !== "PAID");
     const lateLoans = loans.filter((loan) => loan.status === "LATE");
@@ -109,6 +155,7 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
     }
     return loans.filter((loan) => loan.status === "PAID");
   }, [loanFilter, loans]);
+  const loansPagination = usePagination(filteredLoans, 6);
 
   const handleExpiredSession = () => {
     clearSession();
@@ -168,6 +215,8 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
   const handleStartEditing = () => {
     if (!client) return;
     setEditForm(buildEditForm(client));
+    setEditProfileImageFile(null);
+    setEditProfileImagePreview(client.profileImage ?? null);
     setEditing(true);
     setError(null);
     setSuccessMessage(null);
@@ -175,9 +224,30 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
 
   const handleCancelEditing = () => {
     if (client) setEditForm(buildEditForm(client));
+    setEditProfileImageFile(null);
+    setEditProfileImagePreview(client?.profileImage ?? null);
     setEditing(false);
     setError(null);
     setSuccessMessage(null);
+  };
+
+  const handleEditProfileImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    setError(null);
+    setSuccessMessage(null);
+    setEditProfileImageFile(file);
+    setEditProfileImagePreview((current) => {
+      if (current?.startsWith("blob:")) {
+        URL.revokeObjectURL(current);
+      }
+
+      return URL.createObjectURL(file);
+    });
   };
 
   const handleSaveChanges = async () => {
@@ -187,9 +257,14 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
       setSaving(true);
       setError(null);
       setSuccessMessage(null);
-      const updatedClient = await updateClientService(client.id, buildUpdatePayload(editForm));
+      const updatedClient = await updateClientService(
+        client.id,
+        buildUpdatePayload(editForm, editProfileImagePreview, editProfileImageFile)
+      );
       setClient(updatedClient);
       setEditForm(buildEditForm(updatedClient));
+      setEditProfileImageFile(null);
+      setEditProfileImagePreview(updatedClient.profileImage ?? null);
       setEditing(false);
       setSuccessMessage("Cliente actualizado correctamente.");
     } catch (error) {
@@ -324,12 +399,63 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
               <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
                 <div className="flex flex-col gap-5 md:flex-row md:items-center">
                   <div className="relative">
-                    <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[radial-gradient(circle_at_top,_#ffffff_0%,_#eef3f9_55%,_#dce6f1_100%)] text-3xl font-bold text-[#75889f] shadow-[inset_0_2px_10px_rgba(255,255,255,0.7),0_14px_28px_rgba(16,40,68,0.08)]">
-                      {getInitials(client.name)}
-                    </div>
-                    <div className="absolute -bottom-2 left-[4.35rem] flex h-9 w-9 items-center justify-center rounded-full border-4 border-white bg-[#63b649] text-white shadow-[0_10px_18px_rgba(99,182,73,0.28)]">
-                      <UserCardIconSmall />
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!editing && client.profileImage) {
+                          setIsImageOpen(true);
+                        }
+                      }}
+                      className={`flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-[radial-gradient(circle_at_top,_#ffffff_0%,_#eef3f9_55%,_#dce6f1_100%)] text-3xl font-bold text-[#75889f] shadow-[inset_0_2px_10px_rgba(255,255,255,0.7),0_14px_28px_rgba(16,40,68,0.08)] ${
+                        !editing && client.profileImage
+                          ? "cursor-zoom-in transition hover:scale-[1.02]"
+                          : ""
+                      }`}
+                    >
+                      {editing && editProfileImagePreview ? (
+                        <Image
+                          src={editProfileImagePreview}
+                          alt={client.name}
+                          width={96}
+                          height={96}
+                          className="h-full w-full object-cover"
+                          unoptimized
+                        />
+                      ) : client.profileImage ? (
+                        <Image
+                          src={client.profileImage}
+                          alt={client.name}
+                          width={96}
+                          height={96}
+                          className="h-full w-full object-cover"
+                          unoptimized
+                        />
+                      ) : (
+                        getInitials(client.name)
+                      )}
+                    </button>
+                    {editing ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => imageInputRef.current?.click()}
+                          className="absolute -bottom-2 left-[4.1rem] inline-flex h-10 items-center justify-center rounded-full border-4 border-white bg-[#63b649] px-3 text-xs font-bold text-white shadow-[0_10px_18px_rgba(99,182,73,0.28)] transition hover:bg-[#54a13c]"
+                        >
+                          Cambiar
+                        </button>
+                        <input
+                          ref={imageInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg"
+                          className="hidden"
+                          onChange={handleEditProfileImageChange}
+                        />
+                      </>
+                    ) : (
+                      <div className="absolute -bottom-2 left-[4.35rem] flex h-9 w-9 items-center justify-center rounded-full border-4 border-white bg-[#63b649] text-white shadow-[0_10px_18px_rgba(99,182,73,0.28)]">
+                        <UserCardIconSmall />
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -347,6 +473,8 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
                     <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-[#6d8098]">
                       <p>ID: {client.cedula}</p>
                       <p>{client.email}</p>
+                      <p>{formatInstitution(client.institution)}</p>
+                      <p>{client.phoneCompany || "Compania no registrada"}</p>
                     </div>
                   </div>
                 </div>
@@ -408,6 +536,21 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
                           className={inputClassName}
                         />
                       </Field>
+                      <Field label="Institucion">
+                        <select
+                          value={editForm.institution}
+                          onChange={(event) =>
+                            handleFormFieldChange("institution", event.target.value)
+                          }
+                          className={inputClassName}
+                        >
+                          {institutionOptions.map((institution) => (
+                            <option key={institution.value} value={institution.value}>
+                              {institution.label}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
                       <Field label="Fecha de Nacimiento">
                         <input
                           type="date"
@@ -439,6 +582,22 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
                           placeholder="809-000-0000"
                         />
                       </Field>
+                      <Field label="Compania Telefonica">
+                        <select
+                          value={editForm.phoneCompany}
+                          onChange={(event) =>
+                            handleFormFieldChange("phoneCompany", event.target.value)
+                          }
+                          className={inputClassName}
+                        >
+                          <option value="">Seleccione compania...</option>
+                          {phoneCompanyOptions.map((company) => (
+                            <option key={company} value={company}>
+                              {company}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
                     </div>
                   ) : (
                     <DetailGrid
@@ -446,8 +605,10 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
                         { label: "Nombre completo", value: client.name },
                         { label: "Cédula", value: client.cedula },
                         { label: "Correo electrónico", value: client.email },
+                        { label: "Institucion", value: formatInstitution(client.institution) },
                         { label: "Fecha de nacimiento", value: formatDate(client.birthDate) },
                         { label: "Teléfono principal", value: client.phone },
+                        { label: "Compañía telefónica", value: client.phoneCompany || "No registrada" },
                         { label: "Teléfono secundario", value: client.phone2 || "No registrado" },
                       ]}
                     />
@@ -502,7 +663,7 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
                             </tr>
                           </thead>
                           <tbody className="bg-white">
-                            {filteredLoans.map((loan) => (
+                            {loansPagination.paginatedItems.map((loan) => (
                               <tr
                                 key={loan.id}
                                 className="border-t border-[#edf1f6] transition hover:bg-[#f8fbfe]"
@@ -524,7 +685,7 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
                                   {formatTableDate(loan.startDate)}
                                 </td>
                                 <td className="px-5 py-4">
-                                  <StatusBadge status={loan.status} />
+                                  <LoanStatusBadge status={loan.status} />
                                 </td>
                                 <td className="px-5 py-4 text-right">
                                   <button
@@ -557,6 +718,15 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
                           </span>
                         </div>
                       </div>
+                      <TablePagination
+                        currentPage={loansPagination.currentPage}
+                        totalPages={loansPagination.totalPages}
+                        totalItems={loansPagination.totalItems}
+                        pageSize={loansPagination.pageSize}
+                        itemLabel="prestamos"
+                        onPrevious={loansPagination.goToPreviousPage}
+                        onNext={loansPagination.goToNextPage}
+                      />
                     </div>
                   )}
                 </DetailSection>
@@ -711,16 +881,46 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
                 </DetailSection>
 
                 <DetailSection title="Credenciales Netbanking">
-                  <div className="rounded-2xl border border-[#d7e5fb] bg-[#edf4ff] p-4">
-                    <p className="font-semibold text-[#1d4ed8]">Datos protegidos</p>
-                    <p className="mt-2 text-sm leading-6 text-[#58708e]">
-                      Estas credenciales se muestran porque tu backend ya las devuelve
-                      desencriptadas.
-                    </p>
+                  <div className="flex flex-col gap-3 rounded-2xl border border-[#e4ebf5] bg-[#fbfdff] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#163658]">
+                        {getCredentialBankLabel(
+                          editing ? editForm.credentialBank : client.credentials?.bank ?? "BANRESERVAS"
+                        )}
+                      </p>
+                      <p className="mt-1 text-sm text-[#6a7f97]">
+                        Accede al login bancario para consultar o usar estas credenciales.
+                      </p>
+                    </div>
+                    <a
+                      href={getCredentialBankUrl(
+                        editing ? editForm.credentialBank : client.credentials?.bank ?? "BANRESERVAS"
+                      )}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl border border-[#d7e3f4] bg-white px-4 text-sm font-semibold text-[#163658] transition hover:border-[#c7d8ef] hover:bg-[#f5f9ff]"
+                    >
+                      Abrir Netbanking
+                    </a>
                   </div>
 
                   {editing ? (
                     <div className="mt-5 space-y-4">
+                      <Field label="Banco del Portal">
+                        <select
+                          value={editForm.credentialBank}
+                          onChange={(event) =>
+                            handleFormFieldChange("credentialBank", event.target.value)
+                          }
+                          className={inputClassName}
+                        >
+                          {credentialBankOptions.map((bank) => (
+                            <option key={bank.value} value={bank.value}>
+                              {bank.label}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
                       <Field label="Usuario / ID">
                         <input
                           type="text"
@@ -745,6 +945,10 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
                   ) : (
                     <div className="mt-5 space-y-4">
                       <InfoBlock
+                        label="Banco del portal"
+                        value={formatCredentialBank(client.credentials?.bank)}
+                      />
+                      <InfoBlock
                         label="Usuario / ID"
                         value={client.credentials?.username || "No registrado"}
                       />
@@ -767,6 +971,35 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
           </div>
         </section>
       </div>
+
+      {client.profileImage && isImageOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(7,18,31,0.78)] px-6 py-8 backdrop-blur-sm"
+          onClick={() => setIsImageOpen(false)}
+        >
+          <div className="relative w-full max-w-[560px]" onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setIsImageOpen(false)}
+              className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(12,39,60,0.75)] text-white transition hover:bg-[rgba(12,39,60,0.92)]"
+              aria-label="Cerrar imagen"
+            >
+              <CloseIcon />
+            </button>
+            <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
+              <div className="relative aspect-square w-full bg-[#eef3f9]">
+                <Image
+                  src={client.profileImage}
+                  alt={client.name}
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
@@ -780,6 +1013,9 @@ function buildEditForm(client: ClientRecord): ClientEditFormState {
     email: client.email,
     phone: client.phone,
     phone2: client.phone2 ?? "",
+    phoneCompany: client.phoneCompany ?? "",
+    institution: client.institution,
+    credentialBank: client.credentials?.bank ?? "BANRESERVAS",
     username: client.credentials?.username ?? "",
     password: client.credentials?.password ?? "",
     bankAccounts:
@@ -794,7 +1030,11 @@ function buildEditForm(client: ClientRecord): ClientEditFormState {
   };
 }
 
-function buildUpdatePayload(form: ClientEditFormState): UpdateClientPayload {
+function buildUpdatePayload(
+  form: ClientEditFormState,
+  profileImagePreview: string | null,
+  profileImageFile: File | null
+): UpdateClientPayload {
   return {
     name: form.name.trim(),
     cedula: form.cedula.trim(),
@@ -802,8 +1042,15 @@ function buildUpdatePayload(form: ClientEditFormState): UpdateClientPayload {
     birthDate: form.birthDate,
     email: form.email.trim(),
     phone: form.phone.trim(),
+    institution: form.institution,
+    ...(form.phoneCompany.trim() ? { phoneCompany: form.phoneCompany.trim() } : {}),
     ...(form.phone2.trim() ? { phone2: form.phone2.trim() } : {}),
+    ...(!profileImageFile && profileImagePreview && !profileImagePreview.startsWith("blob:")
+      ? { profileImage: profileImagePreview }
+      : {}),
+    ...(profileImageFile ? { profileImageFile } : {}),
     credentials: {
+      bank: form.credentialBank,
       username: form.username.trim(),
       password: form.password,
     },
@@ -834,7 +1081,7 @@ function SummaryCard({
   accent?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-[#e3eaf2] bg-[#fbfcfe] px-4 py-4">
+    <div className="summary-card rounded-2xl border border-[#e3eaf2] bg-[#fbfcfe] px-4 py-4">
       <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#8597ad]">{label}</p>
       <p className={`mt-2 text-lg font-semibold ${accent ? "text-[#63b649]" : "text-[#24384f]"}`}>
         {value}
@@ -854,9 +1101,9 @@ function ModernInfoPill({
 }) {
   return (
     <div
-      className={`rounded-[22px] border px-4 py-4 shadow-[0_10px_24px_rgba(16,40,68,0.05)] ${
+      className={`modern-info-pill rounded-[22px] border px-4 py-4 shadow-[0_10px_24px_rgba(16,40,68,0.05)] ${
         accent
-          ? "border-[#d7ebd0] bg-[linear-gradient(135deg,_#f9fff6_0%,_#f2f9ee_100%)]"
+          ? "modern-info-pill-accent border-[#d7ebd0] bg-[linear-gradient(135deg,_#f9fff6_0%,_#f2f9ee_100%)]"
           : "border-[#e5ebf3] bg-[linear-gradient(135deg,_#ffffff_0%,_#f7fafe_100%)]"
       }`}
     >
@@ -876,7 +1123,7 @@ function DetailSection({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-[24px] border border-[#d8e2ee] bg-white shadow-[0_12px_34px_rgba(29,46,77,0.05)]">
+    <section className="detail-section rounded-[24px] border border-[#d8e2ee] bg-white shadow-[0_12px_34px_rgba(29,46,77,0.05)]">
       <div className="flex flex-col gap-3 border-b border-[#e7edf5] px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-[1.5rem] font-bold tracking-[-0.03em] text-[#102844]">{title}</h2>
         {action}
@@ -913,7 +1160,7 @@ function InfoBlock({
   mono?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-[#e7edf5] bg-[#fbfcfe] px-4 py-4">
+    <div className="info-block rounded-2xl border border-[#e7edf5] bg-[#fbfcfe] px-4 py-4">
       <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#7f91a6]">{label}</p>
       <p
         className={`mt-2 break-words text-base text-[#24384f] ${
@@ -937,21 +1184,6 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function StatusBadge({ status }: { status: LoanStatus }) {
-  const styles =
-    status === "PAID"
-      ? "bg-[#eef8ed] text-[#4f9938]"
-      : status === "LATE"
-        ? "bg-[#ffe8e8] text-[#ef4444]"
-        : "bg-[#eef8ed] text-[#4f9938]";
-
-  return (
-    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${styles}`}>
-      {formatStatus(status)}
-    </span>
-  );
-}
-
 function LoanFilterButton({
   label,
   active,
@@ -965,9 +1197,9 @@ function LoanFilterButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
+      className={`loan-filter-button rounded-xl px-4 py-2 text-sm font-semibold transition ${
         active
-          ? "bg-[#f3f7fb] text-[#24384f] shadow-[0_6px_14px_rgba(29,46,77,0.08)]"
+          ? "loan-filter-button-active bg-[#f3f7fb] text-[#24384f] shadow-[0_6px_14px_rgba(29,46,77,0.08)]"
           : "text-[#8a9aaf] hover:text-[#60748d]"
       }`}
     >
@@ -1086,16 +1318,62 @@ function formatFrequency(frequency: ClientLoanRecord["frequency"]) {
   return frequency === "MONTHLY" ? "mensual" : "quincenal";
 }
 
-function formatStatus(status: LoanStatus) {
-  if (status === "PAID") {
-    return "Liquidado";
+function formatInstitution(institution: ClientInstitution) {
+  switch (institution) {
+    case "POLICIA":
+      return "Policia";
+    case "PENSIONADO":
+      return "Pensionado";
+    case "EDUCACION":
+      return "Educacion";
+    case "MEDICO":
+      return "Medico";
+    case "GUARDIA":
+      return "Guardia";
+    default:
+      return "Particular";
   }
+}
 
-  if (status === "LATE") {
-    return "En Mora";
+function formatCredentialBank(bank?: ClientCredentialBank) {
+  switch (bank) {
+    case "POPULAR":
+      return "Banco Popular";
+    case "BHD":
+      return "BHD";
+    case "CARIBE":
+      return "Banco Caribe";
+    case "BANRESERVAS":
+      return "Banreservas";
+    default:
+      return "No registrado";
   }
+}
 
-  return "Activo";
+function getCredentialBankLabel(bank: ClientCredentialBank) {
+  switch (bank) {
+    case "POPULAR":
+      return "Portal Banco Popular";
+    case "BHD":
+      return "Portal BHD";
+    case "CARIBE":
+      return "Portal Banco Caribe";
+    default:
+      return "Portal Netbanking Banreservas";
+  }
+}
+
+function getCredentialBankUrl(bank: ClientCredentialBank) {
+  switch (bank) {
+    case "POPULAR":
+      return "https://popularenlinea.com/plusval?utm_source=GADS&utm_medium=CPA&utm_campaign=BANCOPOPULAR&utm_term=CONV&utm_content=&gclsrc=aw.ds&gad_source=1&gad_campaignid=23748063100&gbraid=0AAAAApeXd05-g_wjr3VUdTjskum0Wv5uT&gclid=Cj0KCQjwkrzPBhCqARIsAJN460koLKZUOLV7FYbSEGRbKV7JQtqtpxMZJy6jy_DyUoP0X8hlRGDMYTEaAlJCEALw_wcB";
+    case "BHD":
+      return "https://ibp.bhd.com.do/#/login";
+    case "CARIBE":
+      return "https://www.bancocaribeenlinea.com.do/Web/Login.aspx";
+    default:
+      return "https://tubanco.banreservas.com/TuBancoBanreservas/#/administrationGeneral/login";
+  }
 }
 
 function formatLoanCode(loanId: string) {

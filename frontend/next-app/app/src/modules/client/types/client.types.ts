@@ -4,6 +4,16 @@ export interface ClientBankAccountInput {
   accountNumber: string;
 }
 
+export type ClientInstitution =
+  | "POLICIA"
+  | "PENSIONADO"
+  | "EDUCACION"
+  | "MEDICO"
+  | "GUARDIA"
+  | "PARTICULAR";
+
+export type ClientCredentialBank = "BANRESERVAS" | "POPULAR" | "BHD" | "CARIBE";
+
 export interface CreateClientPayload {
   name: string;
   cedula: string;
@@ -12,15 +22,36 @@ export interface CreateClientPayload {
   email: string;
   phone: string;
   phone2?: string;
+  phoneCompany?: string;
+  institution: ClientInstitution;
   credentials: {
+    bank: ClientCredentialBank;
+    username: string;
+    password: string;
+  };
+  bankAccounts: ClientBankAccountInput[];
+  profileImageFile?: File | null;
+}
+
+export interface UpdateClientPayload {
+  name: string;
+  cedula: string;
+  address: string;
+  birthDate: string;
+  email: string;
+  phone: string;
+  phone2?: string;
+  phoneCompany?: string;
+  institution: ClientInstitution;
+  credentials: {
+    bank: ClientCredentialBank;
     username: string;
     password: string;
   };
   bankAccounts: ClientBankAccountInput[];
   profileImage?: string;
+  profileImageFile?: File | null;
 }
-
-export type UpdateClientPayload = CreateClientPayload;
 
 export interface CreateClientResponse {
   message: string;
@@ -43,6 +74,7 @@ export interface ClientBankAccount {
 
 export interface ClientCredentials {
   id: string;
+  bank: ClientCredentialBank;
   username: string;
   password: string;
 }
@@ -56,7 +88,9 @@ export interface ClientRecord {
   email: string;
   phone: string;
   phone2?: string | null;
+  phoneCompany?: string | null;
   profileImage?: string | null;
+  institution: ClientInstitution;
   createdAt: string;
   bankAccounts: ClientBankAccount[];
   credentials?: ClientCredentials | null;
@@ -69,6 +103,7 @@ export interface GetClientsResponse {
 
 export type LoanFrequency = "MONTHLY" | "BIWEEKLY";
 export type LoanStatus = "ACTIVE" | "LATE" | "PAID";
+export type LoanType = "FLEXIBLE" | "INSTALLMENT";
 
 export interface LoanPaymentRecord {
   id: string;
@@ -81,12 +116,30 @@ export interface LoanPaymentRecord {
   loanId: string;
 }
 
+export interface LoanSegmentRecord {
+  id: string;
+  amount: number;
+  startDate: string;
+}
+
+export interface LoanInstallmentRecord {
+  id: string;
+  number: number;
+  dueDate: string;
+  amount: number;
+  interestPortion: number;
+  principalPortion: number;
+  paidAmount: number;
+  status: "PENDING" | "PARTIAL" | "PAID";
+}
+
 export interface ClientLoanRecord {
   id: string;
   clientId: string;
   principalAmount: number;
   remainingBalance: number;
   interestRate: number;
+  type: LoanType;
   frequency: LoanFrequency;
   startDate: string;
   lastPaymentDate: string;
@@ -96,4 +149,13 @@ export interface ClientLoanRecord {
   currentAccruedInterest: number;
   currentTotalDue: number;
   payments: LoanPaymentRecord[];
+  segments: LoanSegmentRecord[];
+  installments: LoanInstallmentRecord[];
+  client?: {
+    id: string;
+    name: string;
+    cedula: string;
+    address: string;
+    email: string;
+  };
 }

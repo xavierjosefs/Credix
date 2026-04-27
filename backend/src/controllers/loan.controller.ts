@@ -17,7 +17,7 @@ export const createLoanController = async (req: Request, res: Response) => {
 
     const result = await createLoan(req.body, req.user.id);
     return res.status(201).json({
-      message: "Loan created successfully",
+      message: "Loan processed successfully",
       data: result,
     });
   } catch (error: any) {

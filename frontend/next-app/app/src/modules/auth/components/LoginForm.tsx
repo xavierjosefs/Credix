@@ -28,22 +28,22 @@ export default function LoginForm() {
         />
       </div>
 
-      <div className="rounded-[28px] border border-white/80 bg-white/95 px-9 py-10 shadow-[0_24px_60px_rgba(15,23,42,0.10)]">
+      <div className="auth-panel rounded-[28px] border border-white/80 bg-white/95 px-9 py-10 shadow-[0_24px_60px_rgba(15,23,42,0.10)]">
         <div>
-          <h1 className="text-[2.2rem] font-bold leading-none tracking-[-0.04em] text-[#0d1c2f]">
+          <h1 className="auth-title text-[2.2rem] font-bold leading-none tracking-[-0.04em] text-[#0d1c2f]">
             Bienvenido de nuevo
           </h1>
-          <p className="mt-3 max-w-[260px] text-sm leading-6 text-[#667085]">
+          <p className="auth-copy mt-3 max-w-[260px] text-sm leading-6 text-[#667085]">
             Inicia sesion para acceder a tu panel de administracion.
           </p>
         </div>
 
         <form className="mt-10 space-y-5" onSubmit={handleSubmit}>
           <label className="block">
-            <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.26em] text-[#7f8898]">
+            <span className="auth-label mb-2 block text-[11px] font-bold uppercase tracking-[0.26em] text-[#7f8898]">
               Usuario
             </span>
-            <span className="flex h-14 items-center rounded-xl bg-[#f2f3f6] px-4 text-[#96a3b6] ring-1 ring-inset ring-[#e8ebf0] transition focus-within:bg-white focus-within:ring-[#cad2df]">
+            <span className="auth-field flex h-14 items-center rounded-xl bg-[#f2f3f6] px-4 text-[#96a3b6] ring-1 ring-inset ring-[#e8ebf0] transition focus-within:bg-white focus-within:ring-[#cad2df]">
               <UserIcon />
               <input
                 type="email"
@@ -51,16 +51,16 @@ export default function LoginForm() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Ingresa tu usuario"
                 autoComplete="email"
-                className="w-full bg-transparent pl-3 text-sm text-[#122033] outline-none placeholder:text-[#b0bac8]"
+                className="auth-input w-full bg-transparent pl-3 text-sm text-[#122033] outline-none placeholder:text-[#b0bac8]"
               />
             </span>
           </label>
 
           <label className="block">
-            <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.26em] text-[#7f8898]">
+            <span className="auth-label mb-2 block text-[11px] font-bold uppercase tracking-[0.26em] text-[#7f8898]">
               Contrasena
             </span>
-            <span className="flex h-14 items-center rounded-xl bg-[#f2f3f6] px-4 text-[#96a3b6] ring-1 ring-inset ring-[#e8ebf0] transition focus-within:bg-white focus-within:ring-[#cad2df]">
+            <span className="auth-field flex h-14 items-center rounded-xl bg-[#f2f3f6] px-4 text-[#96a3b6] ring-1 ring-inset ring-[#e8ebf0] transition focus-within:bg-white focus-within:ring-[#cad2df]">
               <LockIcon />
               <input
                 type={mostrarContrasena ? "text" : "password"}
@@ -68,12 +68,12 @@ export default function LoginForm() {
                 onChange={(e) => setContrasena(e.target.value)}
                 placeholder="........"
                 autoComplete="current-password"
-                className="w-full bg-transparent px-3 text-sm text-[#122033] outline-none placeholder:text-[#b0bac8]"
+                className="auth-input w-full bg-transparent px-3 text-sm text-[#122033] outline-none placeholder:text-[#b0bac8]"
               />
               <button
                 type="button"
                 onClick={() => setMostrarContrasena((valorActual) => !valorActual)}
-                className="text-[#89a0bb] transition hover:text-[#5d7693]"
+                className="auth-ghost text-[#89a0bb] transition hover:text-[#5d7693]"
                 aria-label={mostrarContrasena ? "Ocultar contrasena" : "Mostrar contrasena"}
               >
                 <EyeIcon />
@@ -84,7 +84,7 @@ export default function LoginForm() {
           <div className="flex justify-end">
             <button
               type="button"
-              className="text-sm font-semibold text-[#4e9a58] transition hover:text-[#3b8144]"
+              className="auth-link text-sm font-semibold text-[#4e9a58] transition hover:text-[#3b8144]"
             >
               Olvidaste tu contrasena?
             </button>
@@ -100,9 +100,9 @@ export default function LoginForm() {
           </button>
         </form>
 
-        <div className="my-7 h-px bg-[#edf0f5]" />
+        <div className="auth-divider my-7 h-px bg-[#edf0f5]" />
 
-        <div className="flex items-center justify-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#bcc5d2]">
+        <div className="auth-meta flex items-center justify-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#bcc5d2]">
           <ShieldIcon />
           <span>Encripcion Sovereign Ledger Activa</span>
         </div>

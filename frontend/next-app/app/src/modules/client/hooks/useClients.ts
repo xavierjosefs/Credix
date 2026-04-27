@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getClientsService } from "../services/client.service";
 import type { ClientRecord } from "../types/client.types";
 
@@ -11,26 +11,23 @@ export function useClients() {
   const [error, setError] = useState<string | null>(null);
   const [activeQuery, setActiveQuery] = useState("");
 
-  useEffect(() => {
-    const loadClients = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await getClientsService();
-        setClients(response.data);
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "No se pudieron cargar los clientes.";
-        setError(message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadClients();
+  const reloadClients = useCallback(async () => {
+    try {
+      setSearching(true);
+      setError(null);
+      setActiveQuery("");
+      const response = await getClientsService();
+      setClients(response.data);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "No se pudieron cargar los clientes.";
+      setError(message);
+    } finally {
+      setSearching(false);
+    }
   }, []);
 
-  const searchClients = async (query: string) => {
+  const searchClients = useCallback(async (query: string) => {
     const trimmedQuery = query.trim();
 
     if (!trimmedQuery) {
@@ -51,23 +48,26 @@ export function useClients() {
     } finally {
       setSearching(false);
     }
-  };
+  }, [reloadClients]);
 
-  const reloadClients = async () => {
-    try {
-      setSearching(true);
-      setError(null);
-      setActiveQuery("");
-      const response = await getClientsService();
-      setClients(response.data);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "No se pudieron cargar los clientes.";
-      setError(message);
-    } finally {
-      setSearching(false);
-    }
-  };
+  useEffect(() => {
+    const loadClients = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await getClientsService();
+        setClients(response.data);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "No se pudieron cargar los clientes.";
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadClients();
+  }, []);
 
   return {
     clients,

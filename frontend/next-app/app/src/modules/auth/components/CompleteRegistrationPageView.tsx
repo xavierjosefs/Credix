@@ -41,12 +41,9 @@ export default function CompleteRegistrationPageView({ token }: { token: string 
 
       await completeRegistrationService({ token, password });
 
-      setSuccess("Tu cuenta fue creada correctamente. Ya puedes iniciar sesion.");
       setPassword("");
       setConfirmPassword("");
-      window.setTimeout(() => {
-        router.replace("/login");
-      }, 1200);
+      router.replace("/login");
     } catch (submitError) {
       const message =
         submitError instanceof Error

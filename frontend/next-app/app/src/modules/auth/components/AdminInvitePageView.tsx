@@ -266,10 +266,14 @@ function translateInviteError(message: string) {
   switch (message) {
     case "Invalid cedula format":
       return "La cedula no tiene un formato valido.";
-    case "The user is already pre-registered":
-      return "Este administrador ya fue invitado anteriormente.";
-    case "The user is already registered":
-      return "Ya existe un administrador registrado con esos datos.";
+    case "There is already a pending invitation for this cedula":
+      return "Ya existe una invitacion pendiente con esa cedula.";
+    case "There is already a pending invitation for this email":
+      return "Ya existe una invitacion pendiente con ese correo.";
+    case "There is already a registered administrator with this cedula":
+      return "Ya existe un administrador registrado con esa cedula.";
+    case "There is already a registered administrator with this email":
+      return "Ya existe un administrador registrado con ese correo.";
     default:
       return message;
   }

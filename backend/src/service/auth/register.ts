@@ -6,38 +6,56 @@ import { sendEmail } from '../../utils/mailer.js'
 import { isValidCedula } from '../../utils/validators/cedula.js'
 
 export const softRegisterUser = async (data: PreRegisterUserDto) => {
-    const { cedula, email, name } = data
+    const cedula = data.cedula.trim();
+    const email = data.email.trim().toLowerCase();
+    const name = data.name.trim();
 
     if (!isValidCedula(cedula)) {
         throw new Error("Invalid cedula format");
     }
 
-    //valido que no exita un preRegistro con estos datos
-    const existingPreRegister = await prisma.preUser.findFirst({
-        where : {
-            OR: [
-                { cedula },
-                { email }
-            ]
-        }
+    const existingPreRegisterByCedula = await prisma.preUser.findUnique({
+        where: { cedula },
     });
-    
-    if (existingPreRegister) {
-        throw new Error("The user is already pre-registered");
+
+    if (existingPreRegisterByCedula) {
+        if (existingPreRegisterByCedula.expiresAt < new Date()) {
+            await prisma.preUser.delete({
+                where: { id: existingPreRegisterByCedula.id },
+            });
+        } else {
+            throw new Error("There is already a pending invitation for this cedula");
+        }
     }
 
-    //valido que no exista un usuario con estos datos
-    const existingUser = await prisma.user.findFirst({
-        where : {
-            OR: [
-                { cedula },
-                { email }
-            ]
-        }
+    const existingPreRegisterByEmail = await prisma.preUser.findUnique({
+        where: { email },
     });
-    
-    if (existingUser) {
-        throw new Error("The user is already registered");
+
+    if (existingPreRegisterByEmail) {
+        if (existingPreRegisterByEmail.expiresAt < new Date()) {
+            await prisma.preUser.delete({
+                where: { id: existingPreRegisterByEmail.id },
+            });
+        } else {
+            throw new Error("There is already a pending invitation for this email");
+        }
+    }
+
+    const existingUserByCedula = await prisma.user.findUnique({
+        where: { cedula },
+    });
+
+    if (existingUserByCedula) {
+        throw new Error("There is already a registered administrator with this cedula");
+    }
+
+    const existingUserByEmail = await prisma.user.findUnique({
+        where: { email },
+    });
+
+    if (existingUserByEmail) {
+        throw new Error("There is already a registered administrator with this email");
     }
 
     //si todo pasa creo el preRegistrop

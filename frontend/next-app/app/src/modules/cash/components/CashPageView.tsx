@@ -4,6 +4,16 @@ import { clearSession } from "@/app/src/modules/auth/services/session.service";
 import type { CashMovementRecord } from "@/app/src/modules/cash/types/cash.types";
 import { getCashMovementsService } from "@/app/src/modules/cash/services/cash.service";
 import AppSidebar from "@/app/src/modules/dashboard/components/AppSidebar";
+import TablePagination from "@/app/src/modules/shared/components/TablePagination";
+import { usePagination } from "@/app/src/modules/shared/hooks/usePagination";
+import {
+  formatCashMethod,
+  formatCashRefId,
+  formatDopCurrency,
+  formatInteger,
+  formatLoanCode,
+  formatTime,
+} from "@/app/src/modules/shared/utils/formatters";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -17,6 +27,8 @@ export default function CashPageView() {
   const [query, setQuery] = useState("");
   const [movements, setMovements] = useState<CashMovementRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openingReport, setOpeningReport] = useState(false);
+  const [openingReceiptId, setOpeningReceiptId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -92,7 +104,7 @@ export default function CashPageView() {
     }
 
     return adminScopedMovements.filter((movement) => {
-      const refId = formatRefId(movement.id).toLowerCase();
+      const refId = formatCashRefId(movement.id).toLowerCase();
       const customerName = movement.client?.name.toLowerCase() ?? "";
       const loanCode = movement.loanId ? formatLoanCode(movement.loanId).toLowerCase() : "";
 
@@ -118,10 +130,57 @@ export default function CashPageView() {
       netBalance: totalIncome - totalExpense,
     };
   }, [adminScopedMovements]);
+  const movementsPagination = usePagination(filteredMovements, 10);
 
   const handleExpiredSession = () => {
     clearSession();
     router.replace("/login");
+  };
+
+  const handleOpenCashReport = () => {
+    setOpeningReport(true);
+    router.push(
+      `/cash/report?${new URLSearchParams({
+        mode: filterMode,
+        ...(filterMode === "day" ? { day: selectedDay } : {}),
+        ...(filterMode === "month" ? { month: selectedMonth } : {}),
+        ...(filterMode === "year" ? { year: selectedYear } : {}),
+        ...(selectedAdmin !== "ALL" ? { admin: selectedAdmin } : {}),
+        ...(query.trim() ? { q: query.trim() } : {}),
+      }).toString()}`
+    );
+  };
+
+  const handleOpenMovementReport = (movement: CashMovementRecord) => {
+    if (!movement.loanId) {
+      return;
+    }
+
+    setOpeningReceiptId(movement.id);
+
+    if (movement.type === "INCOME" && movement.paymentId) {
+      router.push(
+        `/loans/${movement.loanId}/payments/${movement.paymentId}/receipt?${new URLSearchParams({
+          method: movement.method,
+        }).toString()}`
+      );
+
+      return;
+    }
+
+    if (movement.type === "EXPENSE") {
+      const mode =
+        movement.description === "Monto agregado a préstamo existente" ? "TOPUP" : "NEW";
+
+      router.push(
+        `/loans/${movement.loanId}/disbursement?${new URLSearchParams({
+          amount: String(movement.amount),
+          issuedAt: movement.createdAt,
+          method: movement.method,
+          mode,
+        }).toString()}`
+      );
+    }
   };
 
   return (
@@ -143,10 +202,12 @@ export default function CashPageView() {
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
-                  className="inline-flex h-11 items-center rounded-xl border border-[#d9e2ed] bg-white px-5 text-sm font-semibold text-[#24384f] transition hover:bg-[#f8fafc]"
+                  onClick={handleOpenCashReport}
+                  disabled={openingReport}
+                  className="inline-flex h-11 items-center rounded-xl border border-[#d9e2ed] bg-white px-5 text-sm font-semibold text-[#24384f] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  <PrintIcon />
-                  <span className="ml-2">Imprimir Reporte</span>
+                  {openingReport ? <SpinnerIcon /> : <PrintIcon />}
+                  <span className="ml-2">{openingReport ? "Abriendo reporte..." : "Imprimir Reporte"}</span>
                 </button>
               </div>
             </div>
@@ -155,7 +216,7 @@ export default function CashPageView() {
           <div className="space-y-6 px-5 py-8 sm:px-8">
             <section className="flex flex-col gap-4 rounded-[24px] border border-[#d8e2ee] bg-white px-5 py-5 shadow-[0_12px_34px_rgba(29,46,77,0.05)] xl:flex-row xl:items-center xl:justify-between">
               <div className="flex flex-wrap items-center gap-4">
-                <div className="inline-flex rounded-2xl bg-[#eef3f8] p-1">
+                <div className="inline-flex rounded-2xl border border-[#dde7f1] bg-[#eef3f8] p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
                   <TabButton
                     label="Dia"
                     active={filterMode === "day"}
@@ -226,19 +287,19 @@ export default function CashPageView() {
             <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(320px,0.9fr)]">
               <SummaryCard
                 title="Total Ingresos (Pagos)"
-                value={formatCurrency(summary.totalIncome)}
+                value={formatDopCurrency(summary.totalIncome)}
                 tone="income"
                 icon={<IncomeIcon />}
               />
               <SummaryCard
                 title="Total Egresos (Nuevos Prestamos)"
-                value={formatCurrency(summary.totalExpense)}
+                value={formatDopCurrency(summary.totalExpense)}
                 tone="expense"
                 icon={<ExpenseIcon />}
               />
               <SummaryCard
                 title="Balance Neto de Caja"
-                value={formatCurrency(summary.netBalance)}
+                value={formatDopCurrency(summary.netBalance)}
                 tone="balance"
                 icon={<WalletIcon />}
                 dark
@@ -296,6 +357,7 @@ export default function CashPageView() {
                       <th className="px-5 py-4">Metodo</th>
                       <th className="px-5 py-4 text-right">Monto</th>
                       <th className="px-5 py-4">Estado</th>
+                      <th className="px-5 py-4">Accion</th>
                       {filterMode === "day" ? <th className="px-5 py-4">Hora</th> : null}
                     </tr>
                   </thead>
@@ -303,7 +365,7 @@ export default function CashPageView() {
                     {loading ? (
                       <tr>
                         <td
-                          colSpan={filterMode === "day" ? 7 : 6}
+                          colSpan={filterMode === "day" ? 8 : 7}
                           className="px-5 py-16 text-center text-sm text-[#7b8da2]"
                         >
                           Cargando movimientos...
@@ -312,17 +374,17 @@ export default function CashPageView() {
                     ) : filteredMovements.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={filterMode === "day" ? 7 : 6}
+                          colSpan={filterMode === "day" ? 8 : 7}
                           className="px-5 py-16 text-center text-sm text-[#7b8da2]"
                         >
                           {getEmptyStateMessage(filterMode)}
                         </td>
                       </tr>
                     ) : (
-                      filteredMovements.map((movement) => (
+                      movementsPagination.paginatedItems.map((movement) => (
                         <tr key={movement.id} className="border-t border-[#edf1f6]">
                           <td className="px-5 py-5 font-semibold text-[#24384f]">
-                            {formatRefId(movement.id)}
+                            {formatCashRefId(movement.id)}
                           </td>
                           <td className="px-5 py-5 text-[#24384f]">
                             {movement.client?.name ?? "Sin cliente"}
@@ -338,21 +400,37 @@ export default function CashPageView() {
                             </div>
                           </td>
                           <td className="px-5 py-5 text-[#60748d]">
-                            {formatMethod(movement.method)}
+                            {formatCashMethod(movement.method)}
                           </td>
                           <td
                             className={`px-5 py-5 text-right text-[1.05rem] font-bold ${
-                              movement.type === "INCOME" ? "text-[#0f172a]" : "text-[#0f172a]"
+                              movement.type === "INCOME" ? "text-[#223753]" : "text-[#223753]"
                             }`}
                           >
                             {movement.type === "INCOME"
-                              ? formatCurrency(movement.amount)
-                              : `- ${formatCurrency(movement.amount)}`}
+                              ? formatDopCurrency(movement.amount)
+                              : `- ${formatDopCurrency(movement.amount)}`}
                           </td>
                           <td className="px-5 py-5">
                             <span className="inline-flex rounded-full bg-[#daf7e4] px-3 py-1 text-xs font-semibold text-[#179c44]">
                               Registrado
                             </span>
+                          </td>
+                          <td className="px-5 py-5">
+                            {movement.loanId &&
+                            ((movement.type === "INCOME" && movement.paymentId) ||
+                              movement.type === "EXPENSE") ? (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenMovementReport(movement)}
+                                disabled={openingReceiptId === movement.id}
+                                className="inline-flex rounded-xl border border-[#d9e2ed] bg-white px-3 py-2 text-xs font-semibold text-[#24384f] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-70"
+                              >
+                                {openingReceiptId === movement.id ? "Abriendo..." : "Ver reporte"}
+                              </button>
+                            ) : (
+                              <span className="text-sm text-[#8ea0b5]">--</span>
+                            )}
                           </td>
                           {filterMode === "day" ? (
                             <td className="px-5 py-5 text-[#60748d]">
@@ -366,12 +444,24 @@ export default function CashPageView() {
                 </table>
               </div>
 
+              {!loading && filteredMovements.length > 0 ? (
+                <TablePagination
+                  currentPage={movementsPagination.currentPage}
+                  totalPages={movementsPagination.totalPages}
+                  totalItems={movementsPagination.totalItems}
+                  pageSize={movementsPagination.pageSize}
+                  itemLabel="movimientos"
+                  onPrevious={movementsPagination.goToPreviousPage}
+                  onNext={movementsPagination.goToNextPage}
+                />
+              ) : null}
+
               <div className="flex flex-col gap-3 border-t border-[#e7edf5] bg-[#fbfcfe] px-6 py-5 text-sm text-[#74879c] lg:flex-row lg:items-center lg:justify-between">
                 <div className="font-semibold uppercase tracking-[0.16em] text-[#778aa1]">
                   Totales del Dia
                 </div>
                 <div className="text-[2rem] font-bold tracking-[-0.04em] text-[#102844]">
-                  {formatCurrency(summary.netBalance)}
+                  {formatDopCurrency(summary.netBalance)}
                 </div>
                 <div>Todas las transacciones listadas son movimientos reales registrados en caja.</div>
               </div>
@@ -458,12 +548,20 @@ function TabButton({
       onClick={onClick}
       className={`rounded-[16px] px-6 py-3 text-[1.05rem] font-medium transition ${
         active
-          ? "bg-white text-[#102844] shadow-[0_8px_16px_rgba(16,40,68,0.08)]"
-          : "text-[#60748d] hover:text-[#314861]"
+          ? "border border-[#c9d9ea] bg-white text-[#102844] shadow-[0_10px_18px_rgba(16,40,68,0.10)]"
+          : "border border-transparent text-[#60748d] hover:bg-white/70 hover:text-[#314861]"
       }`}
     >
       {label}
     </button>
+  );
+}
+
+function SpinnerIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5 animate-spin fill-current">
+      <path d="M12 2a10 10 0 1 0 10 10h-2a8 8 0 1 1-8-8Z" />
+    </svg>
   );
 }
 
@@ -487,51 +585,6 @@ function NoticeCard({
       <p className="mt-3 text-[1.02rem] leading-8">{description}</p>
     </section>
   );
-}
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(value);
-}
-
-function formatInteger(value: number) {
-  return new Intl.NumberFormat("es-DO").format(value);
-}
-
-function formatRefId(id: string) {
-  return `TRX-${id.slice(0, 4).toUpperCase()}`;
-}
-
-function formatLoanCode(id: string) {
-  return `PR-${id.slice(0, 4).toUpperCase()}`;
-}
-
-function formatMethod(method: CashMovementRecord["method"]) {
-  if (method === "CASH") {
-    return "Efectivo";
-  }
-
-  if (method === "TRANSFER") {
-    return "Transferencia";
-  }
-
-  return "Sin registro";
-}
-
-function formatTime(dateString: string) {
-  const date = new Date(dateString);
-
-  if (Number.isNaN(date.getTime())) {
-    return "--";
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
 }
 
 function getTodayDateInput() {

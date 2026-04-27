@@ -3,20 +3,42 @@
 import { clearSession } from "@/app/src/modules/auth/services/session.service";
 import AppSidebar from "@/app/src/modules/dashboard/components/AppSidebar";
 import { useRouter } from "next/navigation";
-import type { FormEvent, ReactNode } from "react";
-import { useState } from "react";
+import Image from "next/image";
+import type { ChangeEvent, FormEvent, ReactNode } from "react";
+import { useRef, useState } from "react";
 import { useCreateClient } from "../hooks/useCreateClient";
-import type { ClientBankAccountInput, CreateClientPayload } from "../types/client.types";
+import type {
+  ClientBankAccountInput,
+  ClientCredentialBank,
+  ClientInstitution,
+  CreateClientPayload,
+} from "../types/client.types";
 
 const bankOptions = [
   "Banreservas",
   "Banco Popular",
   "BHD",
+  "Banco Caribe",
   "Scotiabank",
   "Asociacion Popular",
 ];
 
 const accountTypeOptions = ["Ahorros", "Corriente"];
+const phoneCompanyOptions = ["Claro", "Altice", "Viva", "Otra"];
+const credentialBankOptions: Array<{ value: ClientCredentialBank; label: string }> = [
+  { value: "BANRESERVAS", label: "Banreservas" },
+  { value: "POPULAR", label: "Banco Popular" },
+  { value: "BHD", label: "BHD" },
+  { value: "CARIBE", label: "Banco Caribe" },
+];
+const institutionOptions: Array<{ value: ClientInstitution; label: string }> = [
+  { value: "POLICIA", label: "Policia" },
+  { value: "PENSIONADO", label: "Pensionado" },
+  { value: "EDUCACION", label: "Educacion" },
+  { value: "MEDICO", label: "Medico" },
+  { value: "GUARDIA", label: "Guardia" },
+  { value: "PARTICULAR", label: "Particular" },
+];
 
 type BankAccountFormItem = ClientBankAccountInput & {
   id: string;
@@ -37,6 +59,9 @@ const initialFormState = {
   email: "",
   phone: "",
   phone2: "",
+  phoneCompany: "",
+  institution: "PARTICULAR" as ClientInstitution,
+  credentialBank: "BANRESERVAS" as ClientCredentialBank,
   username: "",
   password: "",
   bankAccounts: [emptyBankAccount()],
@@ -50,6 +75,9 @@ export default function NewClientPageView() {
   const { createClient, loading, error, successMessage, clearMessages } = useCreateClient();
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState(initialFormState);
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
+  const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFieldChange = (field: keyof typeof initialFormState, value: string) => {
     clearMessages();
@@ -95,11 +123,17 @@ export default function NewClientPageView() {
   const resetForm = () => {
     setForm(initialFormState);
     setShowPassword(false);
+    setProfileImageFile(null);
+    setProfileImagePreview(null);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    await createClient(buildPayload(form));
+    await createClient(buildPayload(form, profileImageFile));
     resetForm();
   };
 
@@ -110,6 +144,34 @@ export default function NewClientPageView() {
   const handleExpiredSession = () => {
     clearSession();
     router.replace("/login");
+  };
+
+  const handleProfileImageClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleProfileImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    clearMessages();
+
+    if (!file) {
+      setProfileImageFile(null);
+      setProfileImagePreview(null);
+      return;
+    }
+
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      event.target.value = "";
+      return;
+    }
+
+    setProfileImageFile(file);
+    setProfileImagePreview(URL.createObjectURL(file));
   };
 
   return (
@@ -141,11 +203,30 @@ export default function NewClientPageView() {
                 <div className="grid gap-8 lg:grid-cols-[168px_minmax(0,1fr)] lg:items-center">
                   <div className="flex justify-center lg:justify-start">
                     <div className="relative">
-                      <div className="flex h-36 w-36 items-center justify-center rounded-full bg-[#eef3f9] text-[#c0cad8]">
-                        <ProfileIcon />
+                      <div className="flex h-36 w-36 items-center justify-center overflow-hidden rounded-full bg-[#eef3f9] text-[#c0cad8]">
+                        {profileImagePreview ? (
+                          <Image
+                            src={profileImagePreview}
+                            alt="Vista previa del cliente"
+                            width={144}
+                            height={144}
+                            className="h-full w-full object-cover"
+                            unoptimized
+                          />
+                        ) : (
+                          <ProfileIcon />
+                        )}
                       </div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg"
+                        onChange={handleProfileImageChange}
+                        className="hidden"
+                      />
                       <button
                         type="button"
+                        onClick={handleProfileImageClick}
                         className="absolute bottom-1 right-0 flex h-12 w-12 items-center justify-center rounded-full bg-[#63b649] text-white shadow-[0_12px_26px_rgba(99,182,73,0.28)] transition hover:bg-[#54a13c]"
                       >
                         <CameraIcon />
@@ -176,6 +257,21 @@ export default function NewClientPageView() {
                         className={inputClassName}
                         required
                       />
+                    </Field>
+
+                    <Field label="Institucion">
+                      <select
+                        value={form.institution}
+                        onChange={(event) => handleFieldChange("institution", event.target.value)}
+                        className={inputClassName}
+                        required
+                      >
+                        {institutionOptions.map((institution) => (
+                          <option key={institution.value} value={institution.value}>
+                            {institution.label}
+                          </option>
+                        ))}
+                      </select>
                     </Field>
                   </div>
                 </div>
@@ -227,6 +323,21 @@ export default function NewClientPageView() {
                         className={inputClassName}
                         required
                       />
+                    </Field>
+
+                    <Field label="Compania Telefonica">
+                      <select
+                        value={form.phoneCompany}
+                        onChange={(event) => handleFieldChange("phoneCompany", event.target.value)}
+                        className={inputClassName}
+                      >
+                        <option value="">Seleccione compania...</option>
+                        {phoneCompanyOptions.map((company) => (
+                          <option key={company} value={company}>
+                            {company}
+                          </option>
+                        ))}
+                      </select>
                     </Field>
 
                     <Field label="Telefono Secundario (Opcional)">
@@ -339,20 +450,41 @@ export default function NewClientPageView() {
 
                 <SectionCard icon={<KeyIcon />} title="Credenciales Netbanking">
                   <div className="space-y-6">
-                    <div className="rounded-2xl border border-[#d7e5fb] bg-[#edf4ff] p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="mt-0.5 text-[#2563eb]">
-                          <InfoIcon />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-[#1d4ed8]">Seguridad de Datos</p>
-                          <p className="mt-2 text-sm leading-6 text-[#58708e]">
-                            Estas credenciales son necesarias para la verificacion de pagos. Se
-                            almacenaran con cifrado de grado militar.
-                          </p>
-                        </div>
+                    <div className="flex flex-col gap-3 rounded-2xl border border-[#e4ebf5] bg-[#fbfdff] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-[#163658]">
+                          {getCredentialBankLabel(form.credentialBank)}
+                        </p>
+                        <p className="mt-1 text-sm text-[#6a7f97]">
+                          Accede al login bancario para validar estas credenciales.
+                        </p>
                       </div>
+                      <a
+                        href={getCredentialBankUrl(form.credentialBank)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl border border-[#d7e3f4] bg-white px-4 text-sm font-semibold text-[#163658] transition hover:border-[#c7d8ef] hover:bg-[#f5f9ff]"
+                      >
+                        Abrir Netbanking
+                      </a>
                     </div>
+
+                    <Field label="Banco del Portal">
+                      <select
+                        value={form.credentialBank}
+                        onChange={(event) =>
+                          handleFieldChange("credentialBank", event.target.value)
+                        }
+                        className={inputClassName}
+                        required
+                      >
+                        {credentialBankOptions.map((bank) => (
+                          <option key={bank.value} value={bank.value}>
+                            {bank.label}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
 
                     <Field label="Usuario / ID">
                       <input
@@ -445,7 +577,10 @@ export default function NewClientPageView() {
   );
 }
 
-function buildPayload(form: typeof initialFormState): CreateClientPayload {
+function buildPayload(
+  form: typeof initialFormState,
+  profileImageFile: File | null
+): CreateClientPayload {
   return {
     name: form.name.trim(),
     cedula: form.cedula.trim(),
@@ -453,8 +588,11 @@ function buildPayload(form: typeof initialFormState): CreateClientPayload {
     birthDate: form.birthDate,
     email: form.email.trim(),
     phone: form.phone.trim(),
+    institution: form.institution,
+    ...(form.phoneCompany.trim() ? { phoneCompany: form.phoneCompany.trim() } : {}),
     ...(form.phone2.trim() ? { phone2: form.phone2.trim() } : {}),
     credentials: {
+      bank: form.credentialBank,
       username: form.username.trim(),
       password: form.password,
     },
@@ -463,6 +601,7 @@ function buildPayload(form: typeof initialFormState): CreateClientPayload {
       accountType: account.accountType.trim(),
       accountNumber: account.accountNumber.trim(),
     })),
+    profileImageFile,
   };
 }
 
@@ -484,6 +623,32 @@ function formatCedula(value: string) {
 
 function formatAccountNumber(value: string) {
   return value.replace(/\D/g, "");
+}
+
+function getCredentialBankLabel(bank: ClientCredentialBank) {
+  switch (bank) {
+    case "POPULAR":
+      return "Portal Banco Popular";
+    case "BHD":
+      return "Portal BHD";
+    case "CARIBE":
+      return "Portal Banco Caribe";
+    default:
+      return "Portal Netbanking Banreservas";
+  }
+}
+
+function getCredentialBankUrl(bank: ClientCredentialBank) {
+  switch (bank) {
+    case "POPULAR":
+      return "https://popularenlinea.com/plusval?utm_source=GADS&utm_medium=CPA&utm_campaign=BANCOPOPULAR&utm_term=CONV&utm_content=&gclsrc=aw.ds&gad_source=1&gad_campaignid=23748063100&gbraid=0AAAAApeXd05-g_wjr3VUdTjskum0Wv5uT&gclid=Cj0KCQjwkrzPBhCqARIsAJN460koLKZUOLV7FYbSEGRbKV7JQtqtpxMZJy6jy_DyUoP0X8hlRGDMYTEaAlJCEALw_wcB";
+    case "BHD":
+      return "https://ibp.bhd.com.do/#/login";
+    case "CARIBE":
+      return "https://www.bancocaribeenlinea.com.do/Web/Login.aspx";
+    default:
+      return "https://tubanco.banreservas.com/TuBancoBanreservas/#/administrationGeneral/login";
+  }
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -590,14 +755,6 @@ function CloseIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
       <path d="m18.3 5.71-1.41-1.42L12 9.17 7.11 4.29 5.7 5.71 10.59 10.6 5.7 15.49l1.41 1.42L12 12l4.89 4.91 1.41-1.42L13.41 10.6Z" />
-    </svg>
-  );
-}
-
-function InfoIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
-      <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm1 15h-2v-6h2Zm0-8h-2V7h2Z" />
     </svg>
   );
 }

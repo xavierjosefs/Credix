@@ -3,17 +3,32 @@
 import { clearSession } from "@/app/src/modules/auth/services/session.service";
 import type { ClientRecord } from "@/app/src/modules/client/types/client.types";
 import AppSidebar from "@/app/src/modules/dashboard/components/AppSidebar";
+import TablePagination from "@/app/src/modules/shared/components/TablePagination";
+import { usePagination } from "@/app/src/modules/shared/hooks/usePagination";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useClients } from "../hooks/useClients";
 
-export default function ClientsPageView() {
+export default function ClientsPageView({ initialQuery = "" }: { initialQuery?: string }) {
   const router = useRouter();
   const { clients, loading, searching, error, activeQuery, searchClients, reloadClients } =
     useClients();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
+  const clientsPagination = usePagination(clients, 10);
+
+  useEffect(() => {
+    const trimmedQuery = initialQuery.trim();
+
+    if (trimmedQuery) {
+      void searchClients(trimmedQuery);
+      return;
+    }
+
+    void reloadClients();
+  }, [initialQuery, reloadClients, searchClients]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -152,7 +167,7 @@ export default function ClientsPageView() {
                           </td>
                         </tr>
                       ) : (
-                        clients.map((client) => (
+                        clientsPagination.paginatedItems.map((client) => (
                           <ClientRow
                             key={client.id}
                             client={client}
@@ -164,6 +179,18 @@ export default function ClientsPageView() {
                   </table>
                 </div>
               </div>
+
+              {!loading && clients.length > 0 ? (
+                <TablePagination
+                  currentPage={clientsPagination.currentPage}
+                  totalPages={clientsPagination.totalPages}
+                  totalItems={clientsPagination.totalItems}
+                  pageSize={clientsPagination.pageSize}
+                  itemLabel="clientes"
+                  onPrevious={clientsPagination.goToPreviousPage}
+                  onNext={clientsPagination.goToNextPage}
+                />
+              ) : null}
             </section>
           </div>
         </section>
@@ -187,8 +214,19 @@ function ClientRow({
     >
       <td className="px-5 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eef3f9] text-sm font-bold text-[#74889f]">
-            {getInitials(client.name)}
+          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-[#eef3f9] text-sm font-bold text-[#74889f]">
+            {client.profileImage ? (
+              <Image
+                src={client.profileImage}
+                alt={client.name}
+                width={40}
+                height={40}
+                className="h-full w-full object-cover"
+                unoptimized
+              />
+            ) : (
+              getInitials(client.name)
+            )}
           </div>
           <div>
             <p className="font-semibold text-[#24384f]">{client.name}</p>

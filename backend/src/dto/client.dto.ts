@@ -1,3 +1,13 @@
+export type Institution =
+  | "POLICIA"
+  | "PENSIONADO"
+  | "EDUCACION"
+  | "MEDICO"
+  | "GUARDIA"
+  | "PARTICULAR";
+
+export type CredentialBank = "BANRESERVAS" | "POPULAR" | "BHD" | "CARIBE";
+
 export interface CreateClientDto {
   name: string
   cedula: string
@@ -7,11 +17,12 @@ export interface CreateClientDto {
   email: string
   phone: string
   phone2?: string
+  phoneCompany?: string
 
   profileImage?: string
-
-  // 🔐 ahora es único
+  institution: Institution
   credentials: {
+    bank: CredentialBank
     username: string
     password: string
   }
@@ -36,8 +47,11 @@ export interface UpdateClientDto {
   email: string
   phone: string
   phone2?: string
+  phoneCompany?: string
   profileImage?: string
+  institution: Institution
   credentials: {
+    bank: CredentialBank
     username: string
     password: string
   }

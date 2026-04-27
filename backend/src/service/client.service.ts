@@ -1,16 +1,36 @@
 import prisma from '../prisma/prisma.js';
 import { encrypt } from '../utils/encryption.js';
-import type { CreateClientDto, GetClientDto, UpdateClientDto } from '../dto/client.dto.js';
+import type {
+    CreateClientDto,
+    CredentialBank,
+    GetClientDto,
+    Institution,
+    UpdateClientDto,
+} from '../dto/client.dto.js';
 import { isValidPhone } from '../utils/validators/phone.js';
-import { decrypt } from '../utils/encryption.js';
-import { Prisma } from '@prisma/client';
+import {
+  buildClientSearchFilters,
+  clientRelationsInclude,
+  decryptClientCredentials,
+  decryptManyClientCredentials,
+  type ClientWithRelations,
+} from './client.helpers.js';
 
-type ClientWithRelations = Prisma.ClientGetPayload<{
-  include: {
-    bankAccounts: true
-    credentials: true
-  }
-}>
+const validInstitutions: Institution[] = [
+    "POLICIA",
+    "PENSIONADO",
+    "EDUCACION",
+    "MEDICO",
+    "GUARDIA",
+    "PARTICULAR",
+];
+
+const validCredentialBanks: CredentialBank[] = [
+    "BANRESERVAS",
+    "POPULAR",
+    "BHD",
+    "CARIBE",
+];
 
 export const createClient = async (data: CreateClientDto) => {
     const {
@@ -21,10 +41,20 @@ export const createClient = async (data: CreateClientDto) => {
         email,
         phone,
         phone2,
+        phoneCompany,
         profileImage,
+        institution,
         credentials,
         bankAccounts,
     } = data;
+
+    if (!institution || !validInstitutions.includes(institution)) {
+        throw new Error("Invalid institution");
+    }
+
+    if (!credentials.bank || !validCredentialBanks.includes(credentials.bank)) {
+        throw new Error("Invalid credential bank");
+    }
 
     //validar si existe el cliente con la cedula o correo
     const existing = await prisma.client.findFirst({
@@ -61,13 +91,16 @@ export const createClient = async (data: CreateClientDto) => {
                 email,
                 phone,
                 ...(phone2 && { phone2 }),
+                ...(phoneCompany && { phoneCompany }),
                 ...(profileImage && { profileImage }),
+                institution,
             }
             });
 
         //crear credenciales
         await tx.bankCredential.create({
             data: {
+                bank: credentials.bank,
                 username: credentials.username,
                 password: encrypt(credentials.password),
                 clientId: newClient.id
@@ -92,18 +125,7 @@ export const createClient = async (data: CreateClientDto) => {
 
 export const getClient = async (data: GetClientDto) => {
     const { cedula, name, email } = data;
-    const orConditions: Prisma.ClientWhereInput[] = [];
-
-    if (cedula) orConditions.push({ cedula });
-    if (email) orConditions.push({ email });
-    if (name) {
-        orConditions.push({
-            name: {
-                contains: name,
-                mode: "insensitive"
-            }
-        });
-    }
+    const orConditions = buildClientSearchFilters({ cedula, name, email });
 
     if (orConditions.length === 0) {
         throw new Error("At least one filter is required");
@@ -111,60 +133,32 @@ export const getClient = async (data: GetClientDto) => {
 
     const client = await prisma.client.findFirst({
         where: { OR: orConditions },
-        include: { bankAccounts: true, credentials: true }
+        include: clientRelationsInclude
     });
 
     if (!client) {
         throw new Error("Client not found");
     }
 
-    if (client.credentials) {
-        client.credentials.password = decrypt(client.credentials.password);
-    }
-
-    return client;
+    return decryptClientCredentials(client);
 }
 
 export const getClientById = async (id: string) => {
     const client = await prisma.client.findUnique({
         where: { id },
-        include: {
-            bankAccounts: true,
-            credentials: true
-        }
+        include: clientRelationsInclude
     });
 
     if (!client) {
         throw new Error("Client not found");
     }
 
-    if (client.credentials) {
-        client.credentials.password = decrypt(client.credentials.password);
-    }
-
-    return client;
+    return decryptClientCredentials(client);
 }
 
 export const getAllClients = async(data?: GetClientDto) => {
     const { cedula, name, email } = data ?? {};
-    const orConditions: Prisma.ClientWhereInput[] = [];
-
-    if (cedula) {
-        orConditions.push({ cedula });
-    }
-
-    if (email) {
-        orConditions.push({ email });
-    }
-
-    if (name) {
-        orConditions.push({
-            name: {
-                contains: name,
-                mode: "insensitive"
-            }
-        });
-    }
+    const orConditions = buildClientSearchFilters({ cedula, name, email });
 
     const clients: ClientWithRelations[] =
         orConditions.length > 0
@@ -172,31 +166,19 @@ export const getAllClients = async(data?: GetClientDto) => {
                 where: {
                     OR: orConditions
                 },
-                include: {
-                    bankAccounts: true,
-                    credentials: true
-                },
+                include: clientRelationsInclude,
                 orderBy: {
                     createdAt: "desc"
                 }
             })
             : await prisma.client.findMany({
-                include: {
-                    bankAccounts: true,
-                    credentials: true
-                },
+                include: clientRelationsInclude,
                 orderBy: {
                     createdAt: "desc"
                 }
             });
 
-     //desenccriptar credenciales
-    for (const client of clients){
-        if(client.credentials) {
-            client.credentials.password = decrypt(client.credentials.password);
-        }
-    }
-    return clients;
+    return decryptManyClientCredentials(clients);
 }
 
 export const updateClient = async (id: string, data: UpdateClientDto) => {
@@ -208,17 +190,16 @@ export const updateClient = async (id: string, data: UpdateClientDto) => {
         email,
         phone,
         phone2,
+        phoneCompany,
         profileImage,
+        institution,
         credentials,
         bankAccounts,
     } = data;
 
     const existingClient = await prisma.client.findUnique({
         where: { id },
-        include: {
-            bankAccounts: true,
-            credentials: true
-        }
+        include: clientRelationsInclude
     });
 
     if (!existingClient) {
@@ -247,6 +228,14 @@ export const updateClient = async (id: string, data: UpdateClientDto) => {
         throw new Error("Invalid secondary phone format");
     }
 
+    if (!institution || !validInstitutions.includes(institution)) {
+        throw new Error("Invalid institution");
+    }
+
+    if (!credentials.bank || !validCredentialBanks.includes(credentials.bank)) {
+        throw new Error("Invalid credential bank");
+    }
+
     const parsedBirthDate = new Date(birthDate);
 
     if (Number.isNaN(parsedBirthDate.getTime())) {
@@ -264,17 +253,25 @@ export const updateClient = async (id: string, data: UpdateClientDto) => {
                 email,
                 phone,
                 phone2: phone2 || null,
-                profileImage: profileImage || null,
+                phoneCompany: phoneCompany || null,
+                institution,
+                ...(profileImage !== undefined
+                    ? {
+                        profileImage: profileImage || null,
+                    }
+                    : {}),
             }
         });
 
         await tx.bankCredential.upsert({
             where: { clientId: id },
             update: {
+                bank: credentials.bank,
                 username: credentials.username,
                 password: encrypt(credentials.password),
             },
             create: {
+                bank: credentials.bank,
                 username: credentials.username,
                 password: encrypt(credentials.password),
                 clientId: id,
@@ -301,19 +298,12 @@ export const updateClient = async (id: string, data: UpdateClientDto) => {
 
     const updatedWithRelations = await prisma.client.findUnique({
         where: { id: result.id },
-        include: {
-            bankAccounts: true,
-            credentials: true
-        }
+        include: clientRelationsInclude
     });
 
     if (!updatedWithRelations) {
         throw new Error("Client not found");
     }
 
-    if (updatedWithRelations.credentials) {
-        updatedWithRelations.credentials.password = decrypt(updatedWithRelations.credentials.password);
-    }
-
-    return updatedWithRelations;
+    return decryptClientCredentials(updatedWithRelations);
 }

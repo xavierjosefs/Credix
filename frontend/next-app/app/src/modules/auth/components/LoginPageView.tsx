@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export default function LoginPageView() {
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#f8f9fb]">
+    <main className="theme-auth relative min-h-screen overflow-hidden bg-[#f8f9fb]">
       <div className="absolute inset-y-0 right-[-10%] hidden w-[42%] -skew-x-[7deg] bg-[#eef1f5] md:block" />
 
       <div className="relative z-10 flex min-h-screen flex-col px-6 py-8 sm:px-8 lg:px-10">

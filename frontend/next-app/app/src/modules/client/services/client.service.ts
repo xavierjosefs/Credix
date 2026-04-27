@@ -17,13 +17,36 @@ export async function createClientService(
     throw new Error("Tu sesion expiro. Inicia sesion nuevamente.");
   }
 
+  const formData = new FormData();
+  formData.set("name", data.name);
+  formData.set("cedula", data.cedula);
+  formData.set("address", data.address);
+  formData.set("birthDate", data.birthDate);
+  formData.set("email", data.email);
+  formData.set("phone", data.phone);
+  formData.set("institution", data.institution);
+
+  if (data.phone2) {
+    formData.set("phone2", data.phone2);
+  }
+
+  if (data.phoneCompany) {
+    formData.set("phoneCompany", data.phoneCompany);
+  }
+
+  formData.set("credentials", JSON.stringify(data.credentials));
+  formData.set("bankAccounts", JSON.stringify(data.bankAccounts));
+
+  if (data.profileImageFile) {
+    formData.set("image", data.profileImageFile);
+  }
+
   const response = await fetch("http://localhost:8000/client/create", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(data),
+    body: formData,
   });
 
   const payload = (await response.json()) as CreateClientResponse & {
@@ -136,13 +159,40 @@ export async function updateClientService(
     throw new Error("Tu sesion expiro. Inicia sesion nuevamente.");
   }
 
+  const formData = new FormData();
+  formData.set("name", data.name);
+  formData.set("cedula", data.cedula);
+  formData.set("address", data.address);
+  formData.set("birthDate", data.birthDate);
+  formData.set("email", data.email);
+  formData.set("phone", data.phone);
+  formData.set("institution", data.institution);
+
+  if (data.phone2) {
+    formData.set("phone2", data.phone2);
+  }
+
+  if (data.phoneCompany) {
+    formData.set("phoneCompany", data.phoneCompany);
+  }
+
+  if (data.profileImage) {
+    formData.set("profileImage", data.profileImage);
+  }
+
+  formData.set("credentials", JSON.stringify(data.credentials));
+  formData.set("bankAccounts", JSON.stringify(data.bankAccounts));
+
+  if (data.profileImageFile) {
+    formData.set("image", data.profileImageFile);
+  }
+
   const response = await fetch(`http://localhost:8000/client/${clientId}`, {
     method: "PUT",
     headers: {
-      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(data),
+    body: formData,
   });
 
   const payload = (await response.json()) as {
