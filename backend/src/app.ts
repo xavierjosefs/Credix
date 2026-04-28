@@ -41,6 +41,18 @@ app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
 app.use(express.json());
+app.get('/', (_req, res) => {
+  res.status(200).json({
+    message: 'Credix API running',
+    status: 'ok',
+  });
+});
+app.get('/health', (_req, res) => {
+  res.status(200).json({
+    message: 'Credix API healthy',
+    status: 'ok',
+  });
+});
 app.use('/auth', authRoutes);
 app.use('/client', clientRoutes);
 app.use('/loan', loanRoutes);
