@@ -18,6 +18,7 @@ export async function loginService(data: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(data),
+    credentials: "include",
   });
 
   if (!res.ok) {
@@ -43,6 +44,7 @@ export async function inviteAdminService(
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(data),
+    credentials: "include",
   });
 
   const payload = (await response.json()) as InviteAdminResponse & {
@@ -65,6 +67,7 @@ export async function completeRegistrationService(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(data),
+    credentials: "include",
   });
 
   const payload = (await response.json()) as CompleteRegistrationResponse & {

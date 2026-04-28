@@ -24,6 +24,7 @@ export async function createLoanService(
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(data),
+    credentials: "include",
   });
 
   const payload = (await response.json()) as CreateLoanResponse & {
@@ -49,6 +50,7 @@ export async function getLoansService(): Promise<ClientLoanRecord[]> {
     headers: {
       Authorization: `Bearer ${token}`,
     },
+    credentials: "include",
   });
 
   const payload = (await response.json()) as {
@@ -76,6 +78,7 @@ export async function getLoanByIdService(loanId: string): Promise<ClientLoanReco
     headers: {
       Authorization: `Bearer ${token}`,
     },
+    credentials: "include",
   });
 
   const payload = (await response.json()) as {
@@ -108,6 +111,7 @@ export async function registerLoanPaymentService(
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(data),
+    credentials: "include",
   });
 
   const payload = (await response.json()) as RegisterLoanPaymentResponse & {

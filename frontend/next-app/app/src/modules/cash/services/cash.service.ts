@@ -40,6 +40,7 @@ export async function getCashMovementsService(
     headers: {
       Authorization: `Bearer ${token}`,
     },
+    credentials: "include",
   });
 
   const payload = (await response.json()) as {
