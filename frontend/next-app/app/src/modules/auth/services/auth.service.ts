@@ -21,11 +21,15 @@ export async function loginService(data: {
     credentials: "include",
   });
 
+  const payload = await res.json();
+
   if (!res.ok) {
-    throw new Error("Login failed");
+    console.error("LOGIN ERROR BACKEND:", payload);
+    throw new Error(payload.message || "Login failed");
   }
 
-  return res.json();
+  return payload;
+
 }
 
 export async function inviteAdminService(
