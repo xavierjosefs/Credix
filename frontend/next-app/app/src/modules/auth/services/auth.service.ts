@@ -1,4 +1,5 @@
 import { getAuthToken } from "@/app/src/modules/auth/services/session.service";
+import { buildApiUrl } from "@/app/src/modules/shared/config/api";
 import type {
   CompleteRegistrationPayload,
   CompleteRegistrationResponse,
@@ -11,7 +12,7 @@ export async function loginService(data: {
   email: string;
   password: string;
 }): Promise<LoginResponse> {
-  const res = await fetch("http://localhost:8000/auth/login", {
+  const res = await fetch(buildApiUrl("/auth/login"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -35,7 +36,7 @@ export async function inviteAdminService(
     throw new Error("Tu sesion expiro. Inicia sesion nuevamente.");
   }
 
-  const response = await fetch("http://localhost:8000/auth/invite-admin", {
+  const response = await fetch(buildApiUrl("/auth/invite-admin"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -58,7 +59,7 @@ export async function inviteAdminService(
 export async function completeRegistrationService(
   data: CompleteRegistrationPayload
 ): Promise<CompleteRegistrationResponse> {
-  const response = await fetch("http://localhost:8000/auth/complete-registration", {
+  const response = await fetch(buildApiUrl("/auth/complete-registration"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

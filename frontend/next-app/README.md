@@ -1,8 +1,8 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This is the frontend for Gestor de Prestamos, built with [Next.js](https://nextjs.org).
 
-## Getting Started
+## Desarrollo
 
-First, run the development server:
+Instala dependencias y levanta el frontend:
 
 ```bash
 npm run dev
@@ -14,23 +14,34 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Por defecto el frontend espera el backend en `http://localhost:8000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Si quieres cambiarlo, crea un archivo `.env.local`:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+```
 
-## Learn More
+## Despliegue en Vercel
 
-To learn more about Next.js, take a look at the following resources:
+Para desplegar este frontend en Vercel:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Usa `frontend/next-app` como Root Directory del proyecto.
+2. Configura esta variable de entorno en Vercel:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+NEXT_PUBLIC_API_BASE_URL=https://TU-BACKEND-PUBLICO
+```
 
-## Deploy on Vercel
+3. Asegurate de que tu backend permita CORS desde el dominio de Vercel.
+4. Ejecuta el despliegue normal de Next.js.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Nota importante
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Este proyecto no puede consumir `localhost` una vez desplegado. El backend debe estar publicado en una URL accesible desde internet y esa URL debe ir en `NEXT_PUBLIC_API_BASE_URL`.
+
+## Build local
+
+```bash
+npm run build
+```

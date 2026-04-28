@@ -1,4 +1,5 @@
 import { getAuthToken } from "@/app/src/modules/auth/services/session.service";
+import { buildApiUrl } from "@/app/src/modules/shared/config/api";
 import type { CashMovementRecord } from "../types/cash.types";
 
 export interface CashMovementFilters {
@@ -31,8 +32,8 @@ export async function getCashMovementsService(
   }
 
   const requestUrl = params.size
-    ? `http://localhost:8000/cash?${params.toString()}`
-    : "http://localhost:8000/cash";
+    ? `${buildApiUrl("/cash")}?${params.toString()}`
+    : buildApiUrl("/cash");
 
   const response = await fetch(requestUrl, {
     method: "GET",

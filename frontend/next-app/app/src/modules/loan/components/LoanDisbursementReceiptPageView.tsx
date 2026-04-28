@@ -364,6 +364,10 @@ function parseMoneyValue(value?: string) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function roundMoney(value: number) {
+  return Number(value.toFixed(2));
+}
+
 function buildDisbursementCode(loanId: string, issuedAt: string) {
   const year = new Date(issuedAt).getFullYear();
   return `DES-${loanId.slice(0, 6).toUpperCase()}-${year}`;

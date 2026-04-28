@@ -1,4 +1,5 @@
 import { getAuthToken } from "@/app/src/modules/auth/services/session.service";
+import { buildApiUrl } from "@/app/src/modules/shared/config/api";
 import type {
   CreateLoanPayload,
   CreateLoanResponse,
@@ -16,7 +17,7 @@ export async function createLoanService(
     throw new Error("Tu sesion expiro. Inicia sesion nuevamente.");
   }
 
-  const response = await fetch("http://localhost:8000/loan/create", {
+  const response = await fetch(buildApiUrl("/loan/create"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -43,7 +44,7 @@ export async function getLoansService(): Promise<ClientLoanRecord[]> {
     throw new Error("Tu sesion expiro. Inicia sesion nuevamente.");
   }
 
-  const response = await fetch("http://localhost:8000/loan", {
+  const response = await fetch(buildApiUrl("/loan"), {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -70,7 +71,7 @@ export async function getLoanByIdService(loanId: string): Promise<ClientLoanReco
     throw new Error("Tu sesion expiro. Inicia sesion nuevamente.");
   }
 
-  const response = await fetch(`http://localhost:8000/loan/${loanId}`, {
+  const response = await fetch(buildApiUrl(`/loan/${loanId}`), {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -100,7 +101,7 @@ export async function registerLoanPaymentService(
     throw new Error("Tu sesion expiro. Inicia sesion nuevamente.");
   }
 
-  const response = await fetch(`http://localhost:8000/loan/${loanId}/payments`, {
+  const response = await fetch(buildApiUrl(`/loan/${loanId}/payments`), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

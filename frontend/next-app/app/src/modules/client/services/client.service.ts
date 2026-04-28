@@ -1,4 +1,5 @@
 import { getAuthToken } from "@/app/src/modules/auth/services/session.service";
+import { buildApiUrl } from "@/app/src/modules/shared/config/api";
 import type {
   ClientLoanRecord,
   ClientRecord,
@@ -41,7 +42,7 @@ export async function createClientService(
     formData.set("image", data.profileImageFile);
   }
 
-  const response = await fetch("http://localhost:8000/client/create", {
+  const response = await fetch(buildApiUrl("/client/create"), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -69,10 +70,10 @@ export async function getClientsService(query?: string): Promise<GetClientsRespo
 
   const trimmedQuery = query?.trim() ?? "";
   const requestUrl = trimmedQuery
-    ? `http://localhost:8000/client?${new URLSearchParams({
+    ? `${buildApiUrl("/client")}?${new URLSearchParams({
         [resolveSearchParam(trimmedQuery)]: trimmedQuery,
       }).toString()}`
-    : "http://localhost:8000/client";
+    : buildApiUrl("/client");
 
   const response = await fetch(requestUrl, {
     method: "GET",
@@ -99,7 +100,7 @@ export async function getClientByIdService(clientId: string): Promise<ClientReco
     throw new Error("Tu sesion expiro. Inicia sesion nuevamente.");
   }
 
-  const response = await fetch(`http://localhost:8000/client/${clientId}`, {
+  const response = await fetch(buildApiUrl(`/client/${clientId}`), {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -127,7 +128,7 @@ export async function getClientLoansService(clientId: string): Promise<ClientLoa
   }
 
   const response = await fetch(
-    `http://localhost:8000/loan?${new URLSearchParams({ clientId }).toString()}`,
+    `${buildApiUrl("/loan")}?${new URLSearchParams({ clientId }).toString()}`,
     {
       method: "GET",
       headers: {
@@ -187,7 +188,7 @@ export async function updateClientService(
     formData.set("image", data.profileImageFile);
   }
 
-  const response = await fetch(`http://localhost:8000/client/${clientId}`, {
+  const response = await fetch(buildApiUrl(`/client/${clientId}`), {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
