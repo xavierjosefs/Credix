@@ -48,6 +48,7 @@ export async function createClientService(
       Authorization: `Bearer ${token}`,
     },
     body: formData,
+    credentials: "include",
   });
 
   const payload = (await response.json()) as CreateClientResponse & {
@@ -80,6 +81,7 @@ export async function getClientsService(query?: string): Promise<GetClientsRespo
     headers: {
       Authorization: `Bearer ${token}`,
     },
+    credentials: "include",
   });
 
   const payload = (await response.json()) as GetClientsResponse & {
@@ -105,6 +107,7 @@ export async function getClientByIdService(clientId: string): Promise<ClientReco
     headers: {
       Authorization: `Bearer ${token}`,
     },
+    credentials: "include",
   });
 
   const payload = (await response.json()) as {
@@ -134,6 +137,7 @@ export async function getClientLoansService(clientId: string): Promise<ClientLoa
       headers: {
         Authorization: `Bearer ${token}`,
       },
+      credentials: "include",
     }
   );
 
@@ -194,6 +198,7 @@ export async function updateClientService(
       Authorization: `Bearer ${token}`,
     },
     body: formData,
+    credentials: "include",
   });
 
   const payload = (await response.json()) as {
