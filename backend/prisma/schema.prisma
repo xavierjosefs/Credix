@@ -1,0 +1,232 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  cedula    String   @unique
+  password  String
+  name      String
+  role      String   @default("ADMIN")
+  createdAt DateTime @default(now())
+  cashMovements CashMovement[]
+}
+
+model PreUser {
+  id        String   @id @default(uuid())
+  cedula    String   @unique
+  email     String   @unique
+  name      String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Client {
+  id String @id @default(uuid())
+
+  name      String
+  cedula    String   @unique
+  address   String
+  birthDate DateTime
+
+  email  String  @unique
+  phone  String
+  phone2 String?
+  phoneCompany String?
+
+  profileImage String?
+  institution Institution
+
+  createdAt DateTime @default(now())
+
+  bankAccounts BankAccount[]
+  credentials  BankCredential?
+
+  loans Loan[]
+  cashMovements CashMovement[]
+}
+
+model BankAccount {
+  id String @id @default(uuid())
+
+  bankName      String
+  accountNumber String
+  accountType   String
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model BankCredential {
+  id String @id @default(uuid())
+
+  bank CredentialBank @default(BANRESERVAS)
+  username String
+  password String
+
+  clientId String @unique
+  client   Client @relation(fields: [clientId], references: [id])
+}
+
+model Loan {
+  id String @id @default(uuid())
+
+  principalAmount  Float
+  remainingBalance Float
+
+  interestRate Float
+  type LoanType @default(FLEXIBLE)
+
+  frequency PaymentFrequency // MONTHLY o BIWEEKLY
+
+  startDate DateTime
+
+  lastPaymentDate DateTime
+  nextDueDate     DateTime
+
+  status LoanStatus @default(ACTIVE)
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id])
+
+  payments Payment[]
+  segments LoanSegment[]
+  installments Installment[]
+
+  createdAt DateTime @default(now())
+  cashMovements CashMovement[]
+}
+
+model LoanSegment {
+  id String @id @default(uuid())
+
+  amount Float
+  startDate DateTime
+
+  loanId String
+  loan   Loan @relation(fields: [loanId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([loanId])
+}
+
+model Payment {
+  id String @id @default(uuid())
+
+  amount Float
+
+  interestPaid  Float
+  principalPaid Float
+
+  remainingBalance Float
+
+  daysCalculated Int
+
+  paymentDate DateTime @default(now())
+
+  loanId String
+  loan   Loan   @relation(fields: [loanId], references: [id])
+}
+
+model Installment {
+  id String @id @default(uuid())
+
+  number Int
+  dueDate DateTime
+
+  amount Float
+  interestPortion Float
+  principalPortion Float
+
+  paidAmount Float @default(0)
+  status InstallmentStatus @default(PENDING)
+
+  loanId String
+  loan   Loan @relation(fields: [loanId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([loanId])
+}
+
+enum PaymentFrequency {
+  MONTHLY // 30 días
+  BIWEEKLY // 15 días
+}
+
+enum LoanStatus {
+  ACTIVE
+  PAID
+  LATE
+}
+
+enum LoanType {
+  FLEXIBLE
+  INSTALLMENT
+}
+
+enum InstallmentStatus {
+  PENDING
+  PARTIAL
+  PAID
+}
+
+model CashMovement {
+  id String @id @default(uuid())
+
+  type   CashMovementType
+  method PaymentMethod
+
+  amount Float
+
+  description String?
+
+  // relaciones
+  loanId String?
+  loan   Loan? @relation(fields: [loanId], references: [id])
+
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id])
+
+  adminId String
+  admin   User @relation(fields: [adminId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+enum CashMovementType {
+  INCOME
+  EXPENSE
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+}
+
+enum Institution {
+  POLICIA
+  PENSIONADO
+  EDUCACION
+  MEDICO
+  GUARDIA
+  PARTICULAR
+}
+
+enum CredentialBank {
+  BANRESERVAS
+  POPULAR
+  BHD
+  CARIBE
+}
