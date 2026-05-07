@@ -10,6 +10,7 @@ export function useLogin() {
     try {
       setLoading(true);
       const res = await loginService(data);
+      localStorage.setItem("token", res.data.token);
       console.log("Login success:", res);
       router.push("/home");
 
