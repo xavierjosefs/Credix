@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { loginService } from "../services/auth.service";
-import { saveSession } from "../services/session.service";
 
 export function useLogin() {
   const router = useRouter();
@@ -11,8 +10,6 @@ export function useLogin() {
     try {
       setLoading(true);
       const res = await loginService(data);
-      saveSession(res.data);
-
       console.log("Login success:", res);
       router.push("/home");
 
