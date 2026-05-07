@@ -30,8 +30,10 @@ const corsOptions = {
     return callback(new Error(`Origin not allowed by CORS: ${origin}`));
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  exposedHeaders: ['Set-Cookie'],
 };
-
 
 // ✅ CORS principal
 app.use(cors(corsOptions));
