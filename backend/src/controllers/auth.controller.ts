@@ -39,7 +39,12 @@ export const login = async (req: Request, res: Response) => {
         const { email, password } = req.body;
         const result = await loginUser({ email, password });
         
-        return res.status(200).json({
+        return res.cookie("auth_token", result.token, {
+            httpOnly: true,
+            secure: true,
+            sameSite: "none",
+            maxAge: 1000 * 60 * 60 * 24,
+        }).status(200).json({
             message: "Login successful",
             data: result,
         });
