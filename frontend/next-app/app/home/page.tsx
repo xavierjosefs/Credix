@@ -1,14 +1,19 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import DashboardView from "@/app/src/modules/dashboard/components/DashboardView";
 
-export default async function HomePage() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("auth_token")?.value;
+export default function HomePage() {
+  const router = useRouter();
 
-  if (!token) {
-    redirect("/login");
-  }
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      router.push("/login");
+    }
+  }, [router]);
 
   return <DashboardView />;
 }
