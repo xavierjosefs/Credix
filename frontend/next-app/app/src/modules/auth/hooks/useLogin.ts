@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { loginService } from "../services/auth.service";
+import { saveSession } from "../services/session.service";
 
 export function useLogin() {
   const router = useRouter();
@@ -9,9 +10,16 @@ export function useLogin() {
   const login = async (data: { email: string; password: string }) => {
     try {
       setLoading(true);
+
       const res = await loginService(data);
-      localStorage.setItem("token", res.data.token);
+
+      saveSession({
+        token: res.data.token,
+        user: res.data.user,
+      });
+
       console.log("Login success:", res);
+
       router.push("/home");
 
     } catch (error) {
