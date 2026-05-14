@@ -2,6 +2,30 @@ import { Prisma } from "@prisma/client";
 import type { GetCashMovementsDto } from "../dto/cash.dto.js";
 import prisma from "../prisma/prisma.js";
 
+type CashMovementWithRelations = Prisma.CashMovementGetPayload<{
+  include: {
+    client: true;
+    loan: true;
+    admin: true;
+  };
+}>;
+
+type PaymentWithLoanClient = Prisma.PaymentGetPayload<{
+  include: {
+    loan: {
+      include: {
+        client: true;
+      };
+    };
+  };
+}>;
+
+type LoanWithClient = Prisma.LoanGetPayload<{
+  include: {
+    client: true;
+  };
+}>;
+
 export const getCashMovements = async (filters: GetCashMovementsDto) => {
   const where: Prisma.CashMovementWhereInput = {};
   let rangeFilter:
@@ -66,7 +90,7 @@ export const getCashMovements = async (filters: GetCashMovementsDto) => {
   ]);
 
   const paymentIdByKey = new Map(
-    legacyPayments.map((payment) => [
+    legacyPayments.map((payment: PaymentWithLoanClient) => [
       buildMovementKey(payment.loanId, payment.amount, payment.paymentDate),
       payment.id,
     ])
@@ -74,26 +98,26 @@ export const getCashMovements = async (filters: GetCashMovementsDto) => {
 
   const existingIncomeKeys = new Set(
     cashMovements
-      .filter((movement) => movement.type === "INCOME" && movement.loanId)
-      .map((movement) =>
+      .filter((movement: CashMovementWithRelations) => movement.type === "INCOME" && movement.loanId)
+      .map((movement: CashMovementWithRelations) =>
         buildMovementKey(movement.loanId!, movement.amount, movement.createdAt)
       )
   );
 
   const existingExpenseKeys = new Set(
     cashMovements
-      .filter((movement) => movement.type === "EXPENSE" && movement.loanId)
-      .map((movement) =>
+      .filter((movement: CashMovementWithRelations) => movement.type === "EXPENSE" && movement.loanId)
+      .map((movement: CashMovementWithRelations) =>
         buildMovementKey(movement.loanId!, movement.amount, movement.createdAt)
       )
   );
 
   const synthesizedPaymentMovements = legacyPayments
-    .filter((payment) => {
+    .filter((payment: PaymentWithLoanClient) => {
       const key = buildMovementKey(payment.loanId, payment.amount, payment.paymentDate);
       return !existingIncomeKeys.has(key);
     })
-    .map((payment) => ({
+    .map((payment: PaymentWithLoanClient) => ({
       id: `legacy-payment-${payment.id}`,
       paymentId: payment.id,
       type: "INCOME" as const,
@@ -112,11 +136,11 @@ export const getCashMovements = async (filters: GetCashMovementsDto) => {
     }));
 
   const synthesizedLoanMovements = legacyLoans
-    .filter((loan) => {
+    .filter((loan: LoanWithClient) => {
       const key = buildMovementKey(loan.id, loan.principalAmount, loan.createdAt);
       return !existingExpenseKeys.has(key);
     })
-    .map((loan) => ({
+    .map((loan: LoanWithClient) => ({
       id: `legacy-loan-${loan.id}`,
       paymentId: null,
       type: "EXPENSE" as const,
@@ -134,7 +158,7 @@ export const getCashMovements = async (filters: GetCashMovementsDto) => {
       admin: null,
     }));
 
-  const normalizedCashMovements = cashMovements.map((movement) => ({
+  const normalizedCashMovements = cashMovements.map((movement: CashMovementWithRelations) => ({
     ...movement,
     paymentId:
       movement.type === "INCOME" && movement.loanId

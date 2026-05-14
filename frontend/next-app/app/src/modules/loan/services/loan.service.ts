@@ -8,6 +8,11 @@ import type {
 } from "../types/loan.types";
 import type { ClientLoanRecord } from "@/app/src/modules/client/types/client.types";
 
+export interface GetAllLoansResponse {
+  message: string;
+  data: ClientLoanRecord[];
+}
+
 export async function createLoanService(
   data: CreateLoanPayload
 ): Promise<CreateLoanResponse> {
@@ -64,6 +69,32 @@ export async function getLoansService(): Promise<ClientLoanRecord[]> {
   }
 
   return payload.data;
+}
+
+export async function getAllLoansService(): Promise<GetAllLoansResponse> {
+  const token = getAuthToken();
+
+  if (!token) {
+    throw new Error("Tu sesion expiro. Inicia sesion nuevamente.");
+  }
+
+  const response = await fetch(buildApiUrl("/loan"), {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    credentials: "include",
+  });
+
+  const payload = (await response.json()) as GetAllLoansResponse & {
+    error?: string;
+  };
+
+  if (!response.ok) {
+    throw new Error(payload.error || payload.message || "No se pudieron cargar los prestamos.");
+  }
+
+  return payload;
 }
 
 export async function getLoanByIdService(loanId: string): Promise<ClientLoanRecord> {

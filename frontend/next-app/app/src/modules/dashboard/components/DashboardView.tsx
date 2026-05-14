@@ -6,7 +6,8 @@ import {
   getStoredUserServerSnapshot,
   subscribeStoredUser,
 } from "@/app/src/modules/auth/services/session.service";
-import { getClientsService, getClientLoansService } from "@/app/src/modules/client/services/client.service";
+import { getClientsService } from "@/app/src/modules/client/services/client.service";
+import { getAllLoansService } from "@/app/src/modules/loan/services/loan.service";
 import type {
   ClientLoanRecord,
   ClientRecord,
@@ -53,15 +54,12 @@ export default function DashboardView() {
         setError(null);
 
         const clientsResponse = await getClientsService();
+        const loansResponse = await getAllLoansService();
         const clientList = clientsResponse.data;
-
-        const loanLists = await Promise.all(
-          clientList.map((client) => getClientLoansService(client.id))
-        );
 
         if (!cancelled) {
           setClients(clientList);
-          setLoans(loanLists.flat());
+          setLoans(loansResponse.data);
         }
       } catch (error) {
         const message =
