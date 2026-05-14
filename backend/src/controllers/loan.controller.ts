@@ -100,7 +100,7 @@ export const getLoanController = async (req: Request, res: Response) => {
 
 export const getLoansController = async (req: Request, res: Response) => {
   try {
-    const result = await getLoans(req.query as GetLoansDto);
+    const result = await getLoans((req.query ?? {}) as GetLoansDto);
     return res.status(200).json({
       message: "Loans retrieved successfully",
       data: result,

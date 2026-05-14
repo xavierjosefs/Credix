@@ -1,4 +1,4 @@
-import { CashMovementType, LoanStatus, LoanType } from "@prisma/client";
+import { CashMovementType, LoanStatus, LoanType, Prisma } from "@prisma/client";
 import type {
   CreateLoanDto,
   GetLoansDto,
@@ -63,7 +63,7 @@ export const createLoan = async (data: CreateLoanDto, adminId: string) => {
     throw new Error("Client not found");
   }
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     if (existingLoanId) {
       const existingLoan = await tx.loan.findUnique({
         where: { id: existingLoanId },
@@ -267,7 +267,7 @@ export const registerLoanPayment = async (
     }
   }
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const loan = await tx.loan.findUnique({
       where: { id: loanId },
       include: loanRelationsInclude,
