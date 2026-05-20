@@ -39,6 +39,8 @@ model Client {
   phone  String
   phone2 String?
   phoneCompany String?
+  clientNumber String? @unique
+  devicePhone  String?
 
   profileImage String?
   institution Institution

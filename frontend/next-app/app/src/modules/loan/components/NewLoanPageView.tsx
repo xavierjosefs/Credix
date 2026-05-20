@@ -523,13 +523,12 @@ export default function NewLoanPageView() {
                           <Field label="Redito (Tasa de Interes %)">
                             <div className="relative">
                               <input
-                                type="text"
+                                type="number"
+                                step="0.01"
+                                min="0"
                                 value={form.interestRate}
                                 onChange={(event) =>
-                                  handleFieldChange(
-                                    "interestRate",
-                                    formatPercentageInput(event.target.value)
-                                  )
+                                  handleFieldChange("interestRate", event.target.value)
                                 }
                                 placeholder="5.00"
                                 className={`${inputClassName} pr-12`}
@@ -891,14 +890,6 @@ function formatCurrency(value: number) {
 }
 
 function formatMoneyInput(value: string) {
-  const normalized = value.replace(/[^\d.]/g, "");
-  const [integerPart = "", decimalPart = ""] = normalized.split(".");
-  return decimalPart.length > 0
-    ? `${integerPart}.${decimalPart.slice(0, 2)}`
-    : integerPart;
-}
-
-function formatPercentageInput(value: string) {
   const normalized = value.replace(/[^\d.]/g, "");
   const [integerPart = "", decimalPart = ""] = normalized.split(".");
   return decimalPart.length > 0

@@ -23,6 +23,8 @@ export interface CreateClientPayload {
   phone: string;
   phone2?: string;
   phoneCompany?: string;
+  clientNumber?: string;
+  devicePhone?: string;
   institution: ClientInstitution;
   credentials: {
     bank: ClientCredentialBank;
@@ -42,6 +44,8 @@ export interface UpdateClientPayload {
   phone: string;
   phone2?: string;
   phoneCompany?: string;
+  clientNumber?: string;
+  devicePhone?: string;
   institution: ClientInstitution;
   credentials: {
     bank: ClientCredentialBank;
@@ -89,6 +93,8 @@ export interface ClientRecord {
   phone: string;
   phone2?: string | null;
   phoneCompany?: string | null;
+  clientNumber?: string | null;
+  devicePhone?: string | null;
   profileImage?: string | null;
   institution: ClientInstitution;
   createdAt: string;

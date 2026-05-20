@@ -54,6 +54,8 @@ type ClientEditFormState = {
   phone: string;
   phone2: string;
   phoneCompany: string;
+  clientNumber: string;
+  devicePhone: string;
   institution: ClientInstitution;
   credentialBank: ClientCredentialBank;
   username: string;
@@ -551,6 +553,17 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
                           ))}
                         </select>
                       </Field>
+                      <Field label="Numero de Cliente">
+                        <input
+                          type="text"
+                          value={editForm.clientNumber}
+                          onChange={(event) =>
+                            handleFormFieldChange("clientNumber", event.target.value)
+                          }
+                          className={inputClassName}
+                          placeholder="Ej: CL-10025"
+                        />
+                      </Field>
                       <Field label="Fecha de Nacimiento">
                         <input
                           type="date"
@@ -598,6 +611,17 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
                           ))}
                         </select>
                       </Field>
+                      <Field label="Telefono a Trabajar">
+                        <input
+                          type="text"
+                          value={editForm.devicePhone}
+                          onChange={(event) =>
+                            handleFormFieldChange("devicePhone", event.target.value)
+                          }
+                          className={inputClassName}
+                          placeholder="Telefono a trabajar"
+                        />
+                      </Field>
                     </div>
                   ) : (
                     <DetailGrid
@@ -606,7 +630,9 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
                         { label: "Cédula", value: client.cedula },
                         { label: "Correo electrónico", value: client.email },
                         { label: "Institucion", value: formatInstitution(client.institution) },
+                        { label: "Numero de cliente", value: client.clientNumber || "No registrado" },
                         { label: "Fecha de nacimiento", value: formatDate(client.birthDate) },
+                        { label: "Telefono a trabajar", value: client.devicePhone || "No registrado" },
                         { label: "Teléfono principal", value: client.phone },
                         { label: "Compañía telefónica", value: client.phoneCompany || "No registrada" },
                         { label: "Teléfono secundario", value: client.phone2 || "No registrado" },
@@ -1014,6 +1040,8 @@ function buildEditForm(client: ClientRecord): ClientEditFormState {
     phone: client.phone,
     phone2: client.phone2 ?? "",
     phoneCompany: client.phoneCompany ?? "",
+    clientNumber: client.clientNumber ?? "",
+    devicePhone: client.devicePhone ?? "",
     institution: client.institution,
     credentialBank: client.credentials?.bank ?? "BANRESERVAS",
     username: client.credentials?.username ?? "",
@@ -1043,6 +1071,8 @@ function buildUpdatePayload(
     email: form.email.trim(),
     phone: form.phone.trim(),
     institution: form.institution,
+    ...(form.clientNumber.trim() ? { clientNumber: form.clientNumber.trim() } : {}),
+    ...(form.devicePhone.trim() ? { devicePhone: form.devicePhone.trim() } : {}),
     ...(form.phoneCompany.trim() ? { phoneCompany: form.phoneCompany.trim() } : {}),
     ...(form.phone2.trim() ? { phone2: form.phone2.trim() } : {}),
     ...(!profileImageFile && profileImagePreview && !profileImagePreview.startsWith("blob:")

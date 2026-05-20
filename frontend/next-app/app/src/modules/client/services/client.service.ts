@@ -35,6 +35,14 @@ export async function createClientService(
     formData.set("phoneCompany", data.phoneCompany);
   }
 
+  if (data.clientNumber) {
+    formData.set("clientNumber", data.clientNumber);
+  }
+
+  if (data.devicePhone) {
+    formData.set("devicePhone", data.devicePhone);
+  }
+
   formData.set("credentials", JSON.stringify(data.credentials));
   formData.set("bankAccounts", JSON.stringify(data.bankAccounts));
 
@@ -179,6 +187,14 @@ export async function updateClientService(
 
   if (data.phoneCompany) {
     formData.set("phoneCompany", data.phoneCompany);
+  }
+
+  if (data.clientNumber) {
+    formData.set("clientNumber", data.clientNumber);
+  }
+
+  if (data.devicePhone) {
+    formData.set("devicePhone", data.devicePhone);
   }
 
   if (data.profileImage) {
