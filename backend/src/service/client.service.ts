@@ -43,6 +43,8 @@ export const createClient = async (data: CreateClientDto) => {
     phone,
     phone2,
     phoneCompany,
+    clientNumber,
+    devicePhone,
     profileImage,
     institution,
     credentials,
@@ -59,7 +61,7 @@ export const createClient = async (data: CreateClientDto) => {
 
   const existing = await prisma.client.findFirst({
     where: {
-      OR: [{ cedula }, { email }],
+      OR: [{ cedula }, { email }, ...(clientNumber ? [{ clientNumber }] : [])],
     },
   });
 
@@ -86,6 +88,8 @@ export const createClient = async (data: CreateClientDto) => {
         phone,
         ...(phone2 && { phone2 }),
         ...(phoneCompany && { phoneCompany }),
+        ...(clientNumber && { clientNumber }),
+        ...(devicePhone && { devicePhone }),
         ...(profileImage && { profileImage }),
         institution,
       },
@@ -185,6 +189,8 @@ export const updateClient = async (id: string, data: UpdateClientDto) => {
     phone,
     phone2,
     phoneCompany,
+    clientNumber,
+    devicePhone,
     profileImage,
     institution,
     credentials,
@@ -203,7 +209,7 @@ export const updateClient = async (id: string, data: UpdateClientDto) => {
   const conflictingClient = await prisma.client.findFirst({
     where: {
       id: { not: id },
-      OR: [{ cedula }, { email }],
+      OR: [{ cedula }, { email }, ...(clientNumber ? [{ clientNumber }] : [])],
     },
   });
 
@@ -245,6 +251,8 @@ export const updateClient = async (id: string, data: UpdateClientDto) => {
         phone,
         phone2: phone2 || null,
         phoneCompany: phoneCompany || null,
+        clientNumber: clientNumber || null,
+        devicePhone: devicePhone || null,
         institution,
         ...(profileImage !== undefined
           ? {

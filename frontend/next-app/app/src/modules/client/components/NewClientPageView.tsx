@@ -60,6 +60,8 @@ const initialFormState = {
   phone: "",
   phone2: "",
   phoneCompany: "",
+  clientNumber: "",
+  devicePhone: "",
   institution: "PARTICULAR" as ClientInstitution,
   credentialBank: "BANRESERVAS" as ClientCredentialBank,
   username: "",
@@ -234,7 +236,7 @@ export default function NewClientPageView() {
                     </div>
                   </div>
 
-                  <div className="grid gap-5 md:grid-cols-2">
+                  <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                     <Field label="Nombre Completo">
                       <input
                         type="text"
@@ -272,6 +274,32 @@ export default function NewClientPageView() {
                           </option>
                         ))}
                       </select>
+                    </Field>
+
+                    <Field label="Numero de Cliente">
+                      <input
+                        type="text"
+                        value={form.clientNumber}
+                        onChange={(event) =>
+                          handleFieldChange("clientNumber", event.target.value)
+                        }
+                        placeholder="Ej: CL-10025"
+                        className={inputClassName}
+                        required
+                      />
+                    </Field>
+
+                    <Field label="Telefono a Trabajar">
+                      <input
+                        type="text"
+                        value={form.devicePhone}
+                        onChange={(event) =>
+                          handleFieldChange("devicePhone", event.target.value)
+                        }
+                        placeholder="Telefono a trabajar"
+                        className={inputClassName}
+                        required
+                      />
                     </Field>
                   </div>
                 </div>
@@ -589,6 +617,8 @@ function buildPayload(
     email: form.email.trim(),
     phone: form.phone.trim(),
     institution: form.institution,
+    ...(form.clientNumber.trim() ? { clientNumber: form.clientNumber.trim() } : {}),
+    ...(form.devicePhone.trim() ? { devicePhone: form.devicePhone.trim() } : {}),
     ...(form.phoneCompany.trim() ? { phoneCompany: form.phoneCompany.trim() } : {}),
     ...(form.phone2.trim() ? { phone2: form.phone2.trim() } : {}),
     credentials: {

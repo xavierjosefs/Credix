@@ -18,6 +18,8 @@ export interface CreateClientDto {
   phone: string
   phone2?: string
   phoneCompany?: string
+  clientNumber?: string
+  devicePhone?: string
 
   profileImage?: string
   institution: Institution
@@ -48,6 +50,8 @@ export interface UpdateClientDto {
   phone: string
   phone2?: string
   phoneCompany?: string
+  clientNumber?: string
+  devicePhone?: string
   profileImage?: string
   institution: Institution
   credentials: {
