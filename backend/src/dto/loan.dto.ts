@@ -23,4 +23,5 @@ export interface RegisterLoanPaymentDto {
 export interface GetLoansDto {
   clientId?: string;
   status?: LoanStatus;
+  search?: string;
 }

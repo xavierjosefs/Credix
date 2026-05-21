@@ -14,9 +14,26 @@ import { useEffect, useMemo, useState } from "react";
 export default function LoansPageView() {
   const router = useRouter();
   const [loans, setLoans] = useState<ClientLoanRecord[]>([]);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const loansPagination = usePagination(loans, 10);
+  const { setCurrentPage } = loansPagination;
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [search]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, setCurrentPage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -25,7 +42,7 @@ export default function LoansPageView() {
       try {
         setLoading(true);
         setError(null);
-        const data = await getLoansService();
+        const data = await getLoansService(debouncedSearch);
 
         if (!cancelled) {
           setLoans(data);
@@ -49,7 +66,7 @@ export default function LoansPageView() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [debouncedSearch]);
 
   const summary = useMemo(() => {
     const activeLoans = loans.filter((loan) => loan.status === "ACTIVE").length;
@@ -140,11 +157,26 @@ export default function LoansPageView() {
             </section>
 
             <section className="overflow-hidden rounded-[24px] border border-[#d8e2ee] bg-white shadow-[0_12px_34px_rgba(29,46,77,0.05)]">
-              <div className="flex items-center justify-between border-b border-[#e7edf5] px-6 py-5">
-                <h2 className="text-[1.7rem] font-bold tracking-[-0.03em] text-[#102844]">
-                  Listado General
-                </h2>
-                <p className="text-sm text-[#7f91a6]">Doble clic para ver el detalle</p>
+              <div className="flex flex-col gap-4 border-b border-[#e7edf5] px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h2 className="text-[1.7rem] font-bold tracking-[-0.03em] text-[#102844]">
+                    Listado General
+                  </h2>
+                  <p className="mt-1 text-sm text-[#7f91a6]">Doble clic para ver el detalle</p>
+                </div>
+
+                <div className="relative w-full max-w-md">
+                  <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#95a5b8]">
+                    <SearchIcon />
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Buscar por cliente..."
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    className="h-12 w-full rounded-2xl border border-[#d9e2ed] bg-[#fbfcfe] pl-12 pr-4 text-[1rem] text-[#25384f] outline-none transition placeholder:text-[#8f9db0] focus:border-[#bfd0e3] focus:ring-4 focus:ring-[#edf4fb]"
+                  />
+                </div>
               </div>
 
               <div className="overflow-x-auto">
@@ -286,4 +318,12 @@ function formatDate(dateString: string) {
 
 function formatLoanCode(loanId: string) {
   return `#PR-${loanId.slice(0, 4).toUpperCase()}`;
+}
+
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+      <path d="M10 2a8 8 0 1 0 5 14.24l4.38 4.38 1.42-1.42-4.38-4.38A8 8 0 0 0 10 2Zm0 2a6 6 0 1 1-6 6 6 6 0 0 1 6-6Z" />
+    </svg>
+  );
 }
