@@ -166,13 +166,13 @@ export const getAllClients = async (data?: GetClientDto) => {
           },
           include: clientRelationsInclude,
           orderBy: {
-            createdAt: 'desc',
+            name: 'asc',
           },
         })
       : await prisma.client.findMany({
           include: clientRelationsInclude,
           orderBy: {
-            createdAt: 'desc',
+            name: 'asc',
           },
         });
 

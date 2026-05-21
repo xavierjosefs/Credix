@@ -229,10 +229,22 @@ export const getLoanById = async (loanId: string) => {
 };
 
 export const getLoans = async (filters: GetLoansDto) => {
+  const search = filters.search?.trim();
+
   const loans = await prisma.loan.findMany({
     where: {
       ...(filters.clientId && { clientId: filters.clientId }),
       ...(filters.status && { status: filters.status }),
+      ...(search
+        ? {
+            client: {
+              name: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+          }
+        : {}),
     },
     include: loanRelationsInclude,
     orderBy: {

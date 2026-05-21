@@ -43,14 +43,19 @@ export async function createLoanService(
   return payload;
 }
 
-export async function getLoansService(): Promise<ClientLoanRecord[]> {
+export async function getLoansService(search?: string): Promise<ClientLoanRecord[]> {
   const token = getAuthToken();
 
   if (!token) {
     throw new Error("Tu sesion expiro. Inicia sesion nuevamente.");
   }
 
-  const response = await fetch(buildApiUrl("/loan"), {
+  const trimmedSearch = search?.trim() ?? "";
+  const requestUrl = trimmedSearch
+    ? `${buildApiUrl("/loan")}?${new URLSearchParams({ search: trimmedSearch }).toString()}`
+    : buildApiUrl("/loan");
+
+  const response = await fetch(requestUrl, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
