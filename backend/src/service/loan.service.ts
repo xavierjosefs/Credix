@@ -63,6 +63,12 @@ export const createLoan = async (data: CreateLoanDto, adminId: string) => {
     throw new Error("Client not found");
   }
 
+  const parsedStartDate = new Date(startDate);
+
+  if (Number.isNaN(parsedStartDate.getTime())) {
+    throw new Error("Invalid start date");
+  }
+
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     if (existingLoanId) {
       const existingLoan = await tx.loan.findUnique({
@@ -98,7 +104,7 @@ export const createLoan = async (data: CreateLoanDto, adminId: string) => {
       await tx.loanSegment.create({
         data: {
           amount: roundMoney(principalAmount),
-          startDate: new Date(),
+          startDate: parsedStartDate,
           loanId: updatedLoan.id,
         },
       });
@@ -116,12 +122,6 @@ export const createLoan = async (data: CreateLoanDto, adminId: string) => {
       });
 
       return enrichLoan(await getLoanWithRelationsById(tx, updatedLoan.id));
-    }
-
-    const parsedStartDate = new Date(startDate);
-
-    if (Number.isNaN(parsedStartDate.getTime())) {
-      throw new Error("Invalid start date");
     }
 
     const nextDueDate = addDays(parsedStartDate, getPeriodDays(frequency));
@@ -417,20 +417,21 @@ export const registerLoanPayment = async (
     );
     const nextSegments = applyPrincipalPaymentToSegments(loan, principalPaid);
 
+    const interestCoverageDate = addDays(loan.lastPaymentDate, daysCalculated);
     let nextDueDate = loan.nextDueDate;
 
-    if (effectivePaymentDate >= loan.nextDueDate) {
+    if (interestCoverageDate >= loan.nextDueDate) {
       nextDueDate = calculateNextDueDate(
         loan.nextDueDate,
-        effectivePaymentDate,
+        interestCoverageDate,
         loan.frequency
       );
     }
 
-    const nextStatus = resolveLoanStatus({
+    const normalizedStatus = resolveLoanStatus({
       remainingBalance: newRemainingBalance,
       effectivePaymentDate,
-      nextDueDate: loan.nextDueDate,
+      nextDueDate,
     });
 
     const payment = await tx.payment.create({
@@ -461,9 +462,9 @@ export const registerLoanPayment = async (
       where: { id: loan.id },
       data: {
         remainingBalance: newRemainingBalance,
-        lastPaymentDate: effectivePaymentDate,
+        lastPaymentDate: interestCoverageDate,
         nextDueDate,
-        status: nextStatus,
+        status: normalizedStatus,
       },
     });
 

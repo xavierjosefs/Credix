@@ -359,6 +359,7 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
                                 <div className="w-full max-w-[280px]">
                                   <input
                                     type="text"
+                                    inputMode="decimal"
                                     value={customAmount}
                                     onChange={(event) =>
                                       setCustomAmount(formatMoneyInput(event.target.value))
@@ -725,7 +726,7 @@ function formatLoanCode(loanId: string) {
 }
 
 function formatMoneyInput(value: string) {
-  const normalized = value.replace(/[^\d.]/g, "");
+  const normalized = value.replace(",", ".").replace(/[^\d.]/g, "");
   const [integerPart = "", decimalPart = ""] = normalized.split(".");
   return decimalPart.length > 0
     ? `${integerPart}.${decimalPart.slice(0, 2)}`
