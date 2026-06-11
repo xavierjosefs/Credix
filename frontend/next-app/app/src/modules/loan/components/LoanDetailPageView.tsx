@@ -812,21 +812,43 @@ function getInterestSegments(loan: ClientLoanRecord) {
     startDate: segment.startDate,
   }));
 
-  const persistedTotal = roundMoney(
-    persistedSegments.reduce((sum, segment) => sum + segment.amount, 0)
+  const normalizedPersistedSegments = persistedSegments.map((segment) => ({ ...segment }));
+  let persistedTotal = roundMoney(
+    normalizedPersistedSegments.reduce((sum, segment) => sum + segment.amount, 0)
   );
+
+  if (persistedTotal > loan.remainingBalance) {
+    let excessAmount = roundMoney(persistedTotal - loan.remainingBalance);
+
+    for (const segment of normalizedPersistedSegments) {
+      if (excessAmount <= 0) {
+        break;
+      }
+
+      const amountToReduce = Math.min(segment.amount, excessAmount);
+      segment.amount = roundMoney(Math.max(segment.amount - amountToReduce, 0));
+      excessAmount = roundMoney(excessAmount - amountToReduce);
+    }
+
+    persistedTotal = roundMoney(
+      normalizedPersistedSegments.reduce((sum, segment) => sum + segment.amount, 0)
+    );
+  }
+
   const missingBalance = roundMoney(Math.max(loan.remainingBalance - persistedTotal, 0));
 
   if (missingBalance > 0) {
-    persistedSegments.unshift({
+    normalizedPersistedSegments.unshift({
       id: "fallback",
       amount: missingBalance,
       startDate: loan.startDate,
     });
   }
 
-  if (persistedSegments.length > 0) {
-    return persistedSegments;
+  const nonZeroSegments = normalizedPersistedSegments.filter((segment) => segment.amount > 0);
+
+  if (nonZeroSegments.length > 0) {
+    return nonZeroSegments;
   }
 
   if (loan.remainingBalance <= 0) {
