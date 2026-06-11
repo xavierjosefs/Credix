@@ -40,6 +40,7 @@ export default function NewLoanPageView() {
     principalAmount: "",
     startDate: "",
     interestRate: "",
+    topUpInterestDays: "",
     loanType: "FLEXIBLE" as LoanType,
     installmentCount: "12",
     frequency: "MONTHLY" as PaymentFrequency,
@@ -129,6 +130,7 @@ export default function NewLoanPageView() {
   const analytics = useMemo(() => {
     const principalAmount = Number.parseFloat(form.principalAmount || "0");
     const installmentCount = Number.parseInt(form.installmentCount || "0", 10) || 0;
+    const requestedTopUpInterestDays = Number.parseInt(form.topUpInterestDays || "0", 10) || 0;
     const interestRate =
       loanMode === "TOPUP"
         ? selectedExistingLoan?.interestRate ?? 0
@@ -137,9 +139,23 @@ export default function NewLoanPageView() {
       loanMode === "TOPUP"
         ? selectedExistingLoan?.frequency ?? form.frequency
         : form.frequency;
-    const startDate =
-      loanMode === "TOPUP" ? selectedExistingLoan?.startDate ?? "" : form.startDate;
+    const startDate = form.startDate;
+    const topUpInterestDays =
+      loanMode === "TOPUP"
+        ? requestedTopUpInterestDays > 0
+          ? requestedTopUpInterestDays
+          : diffInDays(startDate, new Date().toISOString())
+        : 0;
     const periodInterest = principalAmount * (interestRate / 100);
+    const topUpCalculatedInterest =
+      loanMode === "TOPUP"
+        ? calculateAccruedInterest(
+            principalAmount,
+            interestRate,
+            frequency,
+            topUpInterestDays
+          )
+        : 0;
     const totalInstallmentInterest =
       form.loanType === "INSTALLMENT" && installmentCount > 0
         ? periodInterest * installmentCount
@@ -154,15 +170,22 @@ export default function NewLoanPageView() {
         : 0;
     const totalFirstDue =
       loanMode === "TOPUP" && selectedExistingLoan
-        ? selectedExistingLoan.currentTotalDue + principalAmount
+        ? selectedExistingLoan.currentTotalDue + principalAmount + topUpCalculatedInterest
         : form.loanType === "INSTALLMENT"
           ? estimatedInstallmentAmount
           : principalAmount + periodInterest;
-    const nextDueDate = startDate ? addDays(startDate, frequency === "MONTHLY" ? 30 : 15) : "";
+    const nextDueDate =
+      loanMode === "TOPUP"
+        ? selectedExistingLoan?.nextDueDate ?? ""
+        : startDate
+          ? addDays(startDate, frequency === "MONTHLY" ? 30 : 15)
+          : "";
 
     return {
       principalAmount,
       periodInterest,
+      topUpCalculatedInterest,
+      topUpInterestDays,
       totalInstallmentInterest,
       totalLoanAmount,
       estimatedInstallmentAmount,
@@ -185,6 +208,7 @@ export default function NewLoanPageView() {
     form.loanType,
     form.principalAmount,
     form.startDate,
+    form.topUpInterestDays,
     loanMode,
     selectedExistingLoan,
   ]);
@@ -252,7 +276,7 @@ export default function NewLoanPageView() {
           : form.frequency,
       startDate:
         loanMode === "TOPUP"
-          ? selectedExistingLoan?.startDate ?? new Date().toISOString()
+          ? form.startDate || new Date().toISOString()
           : form.startDate,
       method: form.method,
       ...(loanMode === "TOPUP" && selectedExistingLoanId
@@ -281,7 +305,7 @@ export default function NewLoanPageView() {
     !!selectedClient &&
     Number.parseFloat(form.principalAmount) > 0 &&
     (loanMode === "TOPUP"
-      ? !!selectedExistingLoanId
+      ? !!selectedExistingLoanId && !!form.startDate
       : !!form.startDate &&
         Number.parseFloat(form.interestRate) >= 0 &&
         (form.loanType === "FLEXIBLE" ||
@@ -336,6 +360,10 @@ export default function NewLoanPageView() {
                           onClick={() => {
                             clearMessages();
                             setLoanMode("TOPUP");
+                            setForm((current) => ({
+                              ...current,
+                              startDate: current.startDate || getTodayDateInputValue(),
+                            }));
                           }}
                         />
                       </div>
@@ -527,6 +555,7 @@ export default function NewLoanPageView() {
                                 step="0.01"
                                 min="0"
                                 value={form.interestRate}
+                                onWheel={(event) => event.currentTarget.blur()}
                                 onChange={(event) =>
                                   handleFieldChange("interestRate", event.target.value)
                                 }
@@ -582,7 +611,7 @@ export default function NewLoanPageView() {
                         </div>
                       </>
                     ) : selectedExistingLoan ? (
-                      <div className="mt-6 grid gap-5 md:grid-cols-3">
+                      <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                         <StaticInfoField
                           label="Frecuencia Actual"
                           value={
@@ -597,6 +626,32 @@ export default function NewLoanPageView() {
                         <StaticInfoField
                           label="Proximo Vencimiento"
                           value={formatDate(selectedExistingLoan.nextDueDate)}
+                        />
+                        <Field label="Fecha del Monto Agregado">
+                          <input
+                            type="date"
+                            value={form.startDate}
+                            onChange={(event) => handleFieldChange("startDate", event.target.value)}
+                            className={inputClassName}
+                          />
+                        </Field>
+                        <Field label="Dias a Calcular">
+                          <input
+                            type="text"
+                            value={form.topUpInterestDays}
+                            onChange={(event) =>
+                              handleFieldChange(
+                                "topUpInterestDays",
+                                event.target.value.replace(/[^\d]/g, "").slice(0, 3)
+                              )
+                            }
+                            placeholder="0"
+                            className={inputClassName}
+                          />
+                        </Field>
+                        <StaticInfoField
+                          label="Interes Estimado del Monto"
+                          value={formatCurrency(analytics.topUpCalculatedInterest)}
                         />
                       </div>
                     ) : null}
@@ -707,7 +762,9 @@ export default function NewLoanPageView() {
                             : "Intereses del periodo"
                       }
                       value={formatCurrency(
-                        form.loanType === "INSTALLMENT"
+                        loanMode === "TOPUP"
+                          ? analytics.topUpCalculatedInterest
+                          : form.loanType === "INSTALLMENT"
                           ? analytics.totalInstallmentInterest
                           : analytics.periodInterest
                       )}
@@ -867,6 +924,23 @@ function addDays(dateString: string, days: number) {
   return date.toISOString();
 }
 
+function diffInDays(startDateString: string, endDateString: string) {
+  const startDate = new Date(startDateString);
+  const endDate = new Date(endDateString);
+
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return 0;
+  }
+
+  const diffMs = endDate.getTime() - startDate.getTime();
+
+  if (diffMs <= 0) {
+    return 0;
+  }
+
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+}
+
 function formatDate(dateString: string) {
   const date = new Date(dateString);
 
@@ -890,11 +964,32 @@ function formatCurrency(value: number) {
 }
 
 function formatMoneyInput(value: string) {
-  const normalized = value.replace(/[^\d.]/g, "");
+  const normalized = value.replace(",", ".").replace(/[^\d.]/g, "");
   const [integerPart = "", decimalPart = ""] = normalized.split(".");
   return decimalPart.length > 0
     ? `${integerPart}.${decimalPart.slice(0, 2)}`
     : integerPart;
+}
+
+function calculateAccruedInterest(
+  amount: number,
+  interestRate: number,
+  frequency: PaymentFrequency,
+  daysElapsed: number
+) {
+  if (amount <= 0 || interestRate <= 0 || daysElapsed <= 0) {
+    return 0;
+  }
+
+  const periodDays = frequency === "MONTHLY" ? 30 : 15;
+  const periodInterest = amount * (interestRate / 100);
+  const dailyInterest = periodInterest / periodDays;
+
+  return Number((dailyInterest * daysElapsed).toFixed(2));
+}
+
+function getTodayDateInputValue() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function getInitials(name: string) {
