@@ -7,6 +7,7 @@ import { getLoansService } from "@/app/src/modules/loan/services/loan.service";
 import LoanStatusBadge from "@/app/src/modules/shared/components/LoanStatusBadge";
 import TablePagination from "@/app/src/modules/shared/components/TablePagination";
 import { usePagination } from "@/app/src/modules/shared/hooks/usePagination";
+import { getLoanPortfolioBreakdown } from "@/app/src/modules/shared/utils/loan-metrics";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -71,22 +72,26 @@ export default function LoansPageView() {
   const summary = useMemo(() => {
     const activeLoans = loans.filter((loan) => loan.status === "ACTIVE").length;
     const lateLoans = loans.filter((loan) => loan.status === "LATE").length;
-    const paidLoans = loans.filter((loan) => loan.status === "PAID").length;
-    const totalOutstanding = loans
+    const portfolioBreakdown = loans
       .filter((loan) => loan.status !== "PAID")
-      .reduce((sum, loan) => sum + loan.remainingBalance, 0);
-    const totalCurrentDue = loans
-      .filter((loan) => loan.status !== "PAID")
-      .reduce((sum, loan) => sum + loan.currentTotalDue, 0);
-    const totalInterestDue = loans
-      .filter((loan) => loan.status !== "PAID")
-      .reduce((sum, loan) => sum + loan.currentAccruedInterest, 0);
+      .map(getLoanPortfolioBreakdown);
+    const totalOutstanding = portfolioBreakdown.reduce(
+      (sum, loan) => sum + loan.pendingPrincipal,
+      0
+    );
+    const totalCurrentDue = portfolioBreakdown.reduce(
+      (sum, loan) => sum + loan.totalDue,
+      0
+    );
+    const totalInterestDue = portfolioBreakdown.reduce(
+      (sum, loan) => sum + loan.pendingInterest,
+      0
+    );
 
     return {
       totalLoans: loans.length,
       activeLoans,
       lateLoans,
-      paidLoans,
       totalOutstanding,
       totalCurrentDue,
       totalInterestDue,
