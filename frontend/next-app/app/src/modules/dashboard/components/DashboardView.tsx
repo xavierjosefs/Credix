@@ -16,6 +16,7 @@ import type {
 import AppSidebar from "@/app/src/modules/dashboard/components/AppSidebar";
 import TablePagination from "@/app/src/modules/shared/components/TablePagination";
 import { usePagination } from "@/app/src/modules/shared/hooks/usePagination";
+import { getLoanPortfolioBreakdown } from "@/app/src/modules/shared/utils/loan-metrics";
 import ThemeToggle from "@/app/src/modules/theme/components/ThemeToggle";
 import type { AuthUser } from "@/app/src/modules/types/auth.types";
 import Image from "next/image";
@@ -90,9 +91,17 @@ export default function DashboardView() {
   const dashboardMetrics = useMemo(() => {
     const activeLoans = loans.filter((loan) => loan.status === "ACTIVE").length;
     const lateLoans = loans.filter((loan) => loan.status === "LATE").length;
-    const totalAccruedInterest = loans
+    const portfolioBreakdown = loans
       .filter((loan) => loan.status !== "PAID")
-      .reduce((sum, loan) => sum + loan.currentAccruedInterest, 0);
+      .map(getLoanPortfolioBreakdown);
+    const totalAccruedInterest = portfolioBreakdown.reduce(
+      (sum, loan) => sum + loan.pendingInterest,
+      0
+    );
+    const totalPendingBalance = portfolioBreakdown.reduce(
+      (sum, loan) => sum + loan.pendingPrincipal,
+      0
+    );
     const todayCollections = loans
       .flatMap((loan) => loan.payments)
       .filter((payment) => isToday(payment.paymentDate))
@@ -104,9 +113,7 @@ export default function DashboardView() {
       lateLoans,
       totalAccruedInterest,
       totalClients: clients.length,
-      totalPendingBalance: loans
-        .filter((loan) => loan.status !== "PAID")
-        .reduce((sum, loan) => sum + loan.remainingBalance, 0),
+      totalPendingBalance,
     };
   }, [clients.length, loans]);
 
