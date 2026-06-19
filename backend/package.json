@@ -18,6 +18,7 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
+    "@supabase/server": "^1.1.0",
     "@supabase/supabase-js": "^2.103.2",
     "bcrypt": "^6.0.0",
     "clean": "^4.0.2",
@@ -28,7 +29,8 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
     "nodemailer": "^8.0.3",
-    "pg": "^8.16.3"
+    "pg": "^8.16.3",
+    "puppeteer": "^25.1.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",

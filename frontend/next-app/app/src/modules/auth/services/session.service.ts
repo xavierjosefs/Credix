@@ -2,6 +2,7 @@ import type { AuthSession, AuthUser } from "@/app/src/modules/types/auth.types";
 
 const AUTH_TOKEN_COOKIE = "auth_token";
 const AUTH_USER_STORAGE_KEY = "auth_user";
+const AUTH_TOKEN_STORAGE_KEY = "auth_token";
 const ONE_DAY_IN_SECONDS = 60 * 60 * 24;
 const AUTH_USER_EVENT = "auth-user-changed";
 
@@ -13,7 +14,12 @@ export function saveSession(session: AuthSession) {
     return;
   }
 
+  if (!session?.token || !session?.user) {
+    throw new Error("Sesion invalida recibida desde el login.");
+  }
+
   localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(session.user));
+  localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, session.token);
   document.cookie = `${AUTH_TOKEN_COOKIE}=${encodeURIComponent(session.token)}; path=/; max-age=${ONE_DAY_IN_SECONDS}; samesite=lax`;
   window.dispatchEvent(new Event(AUTH_USER_EVENT));
 }
@@ -24,6 +30,7 @@ export function clearSession() {
   }
 
   localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+  localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
   document.cookie = `${AUTH_TOKEN_COOKIE}=; path=/; max-age=0; samesite=lax`;
   window.dispatchEvent(new Event(AUTH_USER_EVENT));
 }
@@ -58,8 +65,14 @@ export function getStoredUser(): AuthUser | null {
 }
 
 export function hasStoredToken() {
-  if (typeof document === "undefined") {
+  if (typeof window === "undefined") {
     return false;
+  }
+
+  const localToken = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+
+  if (localToken) {
+    return true;
   }
 
   return document.cookie
@@ -68,8 +81,14 @@ export function hasStoredToken() {
 }
 
 export function getAuthToken() {
-  if (typeof document === "undefined") {
+  if (typeof window === "undefined") {
     return null;
+  }
+
+  const localToken = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+
+  if (localToken) {
+    return localToken;
   }
 
   const tokenCookie = document.cookie

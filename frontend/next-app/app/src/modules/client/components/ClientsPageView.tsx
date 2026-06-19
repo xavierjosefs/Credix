@@ -1,10 +1,19 @@
 "use client";
 
 import { clearSession } from "@/app/src/modules/auth/services/session.service";
-import type { ClientRecord } from "@/app/src/modules/client/types/client.types";
+import {
+  getClientCollectionReportService,
+} from "@/app/src/modules/client/services/client.service";
+import type {
+  ClientCollectionMethod,
+  ClientInstitution,
+  ClientRecord,
+  LoanFrequency,
+} from "@/app/src/modules/client/types/client.types";
 import AppSidebar from "@/app/src/modules/dashboard/components/AppSidebar";
 import TablePagination from "@/app/src/modules/shared/components/TablePagination";
 import { usePagination } from "@/app/src/modules/shared/hooks/usePagination";
+import { downloadPdfReport } from "@/app/src/modules/shared/services/report.service";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -17,7 +26,27 @@ export default function ClientsPageView({ initialQuery = "" }: { initialQuery?: 
   const { clients, loading, searching, error, activeQuery, searchClients, reloadClients } =
     useClients();
   const [query, setQuery] = useState(initialQuery);
-  const clientsPagination = usePagination(clients, 10);
+  const [frequencyFilter, setFrequencyFilter] = useState<"ALL" | LoanFrequency>("ALL");
+  const [collectionMethodFilter, setCollectionMethodFilter] = useState<
+    "ALL" | ClientCollectionMethod
+  >("ALL");
+  const [institutionFilter, setInstitutionFilter] = useState<"ALL" | ClientInstitution>("ALL");
+  const [reportClientIds, setReportClientIds] = useState<Set<string> | null>(null);
+  const [applyingFilters, setApplyingFilters] = useState(false);
+  const [openingReport, setOpeningReport] = useState(false);
+  const [filterError, setFilterError] = useState<string | null>(null);
+
+  const visibleClients = clients.filter((client) => {
+    const matchesInstitution =
+      institutionFilter === "ALL" || client.institution === institutionFilter;
+    const matchesCollectionMethod =
+      collectionMethodFilter === "ALL" || client.collectionMethod === collectionMethodFilter;
+    const matchesLoanReport = reportClientIds ? reportClientIds.has(client.id) : true;
+
+    return matchesInstitution && matchesCollectionMethod && matchesLoanReport;
+  });
+
+  const clientsPagination = usePagination(visibleClients, 10);
 
   useEffect(() => {
     const trimmedQuery = initialQuery.trim();
@@ -32,17 +61,93 @@ export default function ClientsPageView({ initialQuery = "" }: { initialQuery?: 
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    await searchClients(query);
+    await applyFilters();
   };
 
   const handleClear = async () => {
     setQuery("");
+    setFrequencyFilter("ALL");
+    setCollectionMethodFilter("ALL");
+    setInstitutionFilter("ALL");
+    setReportClientIds(null);
+    setFilterError(null);
     await reloadClients();
   };
 
   const handleExpiredSession = () => {
     clearSession();
     router.replace("/login");
+  };
+
+  const applyFilters = async () => {
+    try {
+      setApplyingFilters(true);
+      setFilterError(null);
+
+      if (query.trim()) {
+        await searchClients(query);
+      } else {
+        await reloadClients();
+      }
+
+      const hasLoanFilters =
+        frequencyFilter !== "ALL" ||
+        collectionMethodFilter !== "ALL" ||
+        institutionFilter !== "ALL";
+
+      if (!hasLoanFilters) {
+        setReportClientIds(null);
+        return;
+      }
+
+      const report = await getClientCollectionReportService({
+        ...(frequencyFilter !== "ALL" ? { frequency: frequencyFilter } : {}),
+        ...(collectionMethodFilter !== "ALL"
+          ? { collectionMethod: collectionMethodFilter }
+          : {}),
+        ...(institutionFilter !== "ALL" ? { institution: institutionFilter } : {}),
+      });
+
+      setReportClientIds(new Set(report.data.map((row) => row.clientId)));
+    } catch (applyError) {
+      const message =
+        applyError instanceof Error ? applyError.message : "No se pudieron aplicar los filtros.";
+      setFilterError(message);
+      setReportClientIds(null);
+    } finally {
+      setApplyingFilters(false);
+    }
+  };
+
+  const handleOpenClientReport = async () => {
+    try {
+      setOpeningReport(true);
+      setFilterError(null);
+
+      const searchParams = new URLSearchParams();
+
+      if (frequencyFilter !== "ALL") {
+        searchParams.set("frequency", frequencyFilter);
+      }
+
+      if (collectionMethodFilter !== "ALL") {
+        searchParams.set("collectionMethod", collectionMethodFilter);
+      }
+
+      if (institutionFilter !== "ALL") {
+        searchParams.set("institution", institutionFilter);
+      }
+
+      await downloadPdfReport(
+        `/client/report/pdf${searchParams.size > 0 ? `?${searchParams.toString()}` : ""}`
+      );
+    } catch (openError) {
+      const message =
+        openError instanceof Error ? openError.message : "No se pudo generar el reporte.";
+      setFilterError(message);
+    } finally {
+      setOpeningReport(false);
+    }
   };
 
   return (
@@ -57,7 +162,7 @@ export default function ClientsPageView({ initialQuery = "" }: { initialQuery?: 
                 Clientes Registrados
               </h1>
               <p className="mt-1 text-sm text-[#74879c]">
-                Consulta, busca y revisa la informacion principal de tus clientes.
+                Consulta, filtra y genera reportes desde un solo lugar.
               </p>
             </div>
 
@@ -80,12 +185,15 @@ export default function ClientsPageView({ initialQuery = "" }: { initialQuery?: 
                     Listado de Clientes
                   </h2>
                   <p className="mt-1 text-sm text-[#778aa1]">
-                    Busca por cédula, correo electrónico o nombre.
+                    El mismo bloque te sirve para buscar, filtrar el listado y generar el PDF.
                   </p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="flex w-full max-w-[720px] flex-col gap-3 sm:flex-row">
-                  <div className="relative flex-1">
+                <form
+                  onSubmit={handleSubmit}
+                  className="grid w-full max-w-[1080px] gap-3 lg:grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,180px))]"
+                >
+                  <div className="relative">
                     <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#92a1b5]">
                       <SearchIcon />
                     </span>
@@ -97,31 +205,86 @@ export default function ClientsPageView({ initialQuery = "" }: { initialQuery?: 
                       className="h-12 w-full rounded-xl border border-[#d9e2ed] bg-[#fbfcfe] pl-11 pr-4 text-sm text-[#25384f] outline-none transition placeholder:text-[#8f9db0] focus:border-[#bfd0e3] focus:bg-white"
                     />
                   </div>
-                  <button
-                    type="submit"
-                    disabled={searching}
-                    className="inline-flex h-12 items-center justify-center rounded-xl bg-[#102844] px-5 text-sm font-semibold text-white transition hover:bg-[#183757] disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    {searching ? "Buscando..." : "Buscar"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleClear}
-                    disabled={searching}
-                    className="inline-flex h-12 items-center justify-center rounded-xl border border-[#d9e2ed] bg-white px-5 text-sm font-semibold text-[#60748d] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    Limpiar
-                  </button>
+
+                  <FilterSelect
+                    label="Frecuencia"
+                    value={frequencyFilter}
+                    onChange={(value) => setFrequencyFilter(value as "ALL" | LoanFrequency)}
+                    options={[
+                      { value: "ALL", label: "Todos" },
+                      { value: "BIWEEKLY", label: "Quincenal" },
+                      { value: "MONTHLY", label: "Mensual" },
+                    ]}
+                  />
+
+                  <FilterSelect
+                    label="Método de Cobro"
+                    value={collectionMethodFilter}
+                    onChange={(value) =>
+                      setCollectionMethodFilter(value as "ALL" | ClientCollectionMethod)
+                    }
+                    options={[
+                      { value: "ALL", label: "Todos" },
+                      { value: "CAJERO", label: "Cajero" },
+                      { value: "DEPOSITO", label: "Depósito" },
+                      { value: "EFECTIVO", label: "Efectivo" },
+                      { value: "TRANSFERENCIA", label: "Transferencia" },
+                    ]}
+                  />
+
+                  <FilterSelect
+                    label="Institución"
+                    value={institutionFilter}
+                    onChange={(value) =>
+                      setInstitutionFilter(value as "ALL" | ClientInstitution)
+                    }
+                    options={[
+                      { value: "ALL", label: "Todos" },
+                      { value: "POLICIA", label: "Policía" },
+                      { value: "GUARDIA", label: "Guardia" },
+                      { value: "PENSIONADO", label: "Pensionado" },
+                      { value: "EDUCACION", label: "Profesores" },
+                      { value: "MEDICO", label: "Médico" },
+                      { value: "PARTICULAR", label: "Particular" },
+                    ]}
+                  />
+
+                  <div className="flex flex-wrap gap-3 lg:col-span-4 lg:justify-end">
+                    <button
+                      type="submit"
+                      disabled={searching || applyingFilters}
+                      className="inline-flex h-12 items-center justify-center rounded-xl bg-[#102844] px-5 text-sm font-semibold text-white transition hover:bg-[#183757] disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {searching || applyingFilters ? "Aplicando..." : "Aplicar filtros"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClear}
+                      disabled={searching || applyingFilters || openingReport}
+                      className="inline-flex h-12 items-center justify-center rounded-xl border border-[#d9e2ed] bg-white px-5 text-sm font-semibold text-[#60748d] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      Limpiar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenClientReport()}
+                      disabled={openingReport}
+                      className="inline-flex h-12 items-center justify-center rounded-xl bg-[#63b649] px-5 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(99,182,73,0.24)] transition hover:bg-[#54a13c] disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {openingReport ? "Generando PDF..." : "Generar PDF"}
+                    </button>
+                  </div>
                 </form>
               </div>
 
-              {activeQuery && !error && (
+              {activeQuery && !error ? (
                 <div className="mt-5 rounded-2xl border border-[#d8e7f5] bg-[#f6fafe] px-4 py-3 text-sm text-[#5f748d]">
-                  Mostrando resultado para: <span className="font-semibold text-[#1f3552]">{activeQuery}</span>
+                  Mostrando resultado para:{" "}
+                  <span className="font-semibold text-[#1f3552]">{activeQuery}</span>
                 </div>
-              )}
+              ) : null}
 
-              {error && (
+              {error ? (
                 <div className="mt-5 rounded-2xl border border-[#f5caca] bg-[#fff5f5] px-4 py-3 text-sm text-[#c24141]">
                   {error === "Tu sesion expiro. Inicia sesion nuevamente." ? (
                     <span>
@@ -138,7 +301,13 @@ export default function ClientsPageView({ initialQuery = "" }: { initialQuery?: 
                     error
                   )}
                 </div>
-              )}
+              ) : null}
+
+              {filterError && !error ? (
+                <div className="mt-5 rounded-2xl border border-[#f5caca] bg-[#fff5f5] px-4 py-3 text-sm text-[#c24141]">
+                  {filterError}
+                </div>
+              ) : null}
 
               <div className="mt-6 overflow-hidden rounded-[20px] border border-[#e3eaf2]">
                 <div className="overflow-x-auto">
@@ -160,7 +329,7 @@ export default function ClientsPageView({ initialQuery = "" }: { initialQuery?: 
                             Cargando clientes...
                           </td>
                         </tr>
-                      ) : clients.length === 0 ? (
+                      ) : visibleClients.length === 0 ? (
                         <tr>
                           <td colSpan={6} className="px-5 py-14 text-center text-sm text-[#7b8da2]">
                             No hay clientes para mostrar.
@@ -180,7 +349,7 @@ export default function ClientsPageView({ initialQuery = "" }: { initialQuery?: 
                 </div>
               </div>
 
-              {!loading && clients.length > 0 ? (
+              {!loading && visibleClients.length > 0 ? (
                 <TablePagination
                   currentPage={clientsPagination.currentPage}
                   totalPages={clientsPagination.totalPages}
@@ -275,5 +444,36 @@ function SearchIcon() {
     <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
       <path d="M10 2a8 8 0 1 0 5 14.24l4.38 4.38 1.42-1.42-4.38-4.38A8 8 0 0 0 10 2Zm0 2a6 6 0 1 1-6 6 6 6 0 0 1 6-6Z" />
     </svg>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ value: string; label: string }>;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.18em] text-[#617792]">
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-12 w-full rounded-xl border border-[#d9e2ed] bg-white px-4 text-sm text-[#25384f] outline-none transition focus:border-[#bfd0e3] focus:ring-4 focus:ring-[#edf4fb]"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

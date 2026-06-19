@@ -5,6 +5,12 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const token = request.cookies.get("auth_token")?.value;
+  const isProtectedRoute =
+    pathname.startsWith("/home") ||
+    pathname.startsWith("/clients") ||
+    pathname.startsWith("/loans") ||
+    pathname.startsWith("/cash") ||
+    pathname.startsWith("/settings");
 
   if (pathname === "/") {
     return NextResponse.redirect(
@@ -12,17 +18,22 @@ export function proxy(request: NextRequest) {
     );
   }
 
-  if (pathname.startsWith("/home") && token === undefined) {
-    return NextResponse.next();
-  }
-
-  if ((pathname === "/login" || pathname.startsWith("/auth/login")) && token) {
-    return NextResponse.redirect(new URL("/home", request.url));
+  if (isProtectedRoute && !token) {
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/", "/home/:path*", "/login", "/auth/login/:path*"],
+  matcher: [
+    "/",
+    "/home/:path*",
+    "/clients/:path*",
+    "/loans/:path*",
+    "/cash/:path*",
+    "/settings/:path*",
+    "/login",
+    "/auth/login/:path*",
+  ],
 };

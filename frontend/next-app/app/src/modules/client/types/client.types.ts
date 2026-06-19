@@ -12,6 +12,12 @@ export type ClientInstitution =
   | "GUARDIA"
   | "PARTICULAR";
 
+export type ClientCollectionMethod =
+  | "CAJERO"
+  | "DEPOSITO"
+  | "EFECTIVO"
+  | "TRANSFERENCIA";
+
 export type ClientCredentialBank = "BANRESERVAS" | "POPULAR" | "BHD" | "CARIBE";
 
 export interface CreateClientPayload {
@@ -25,6 +31,7 @@ export interface CreateClientPayload {
   phoneCompany?: string;
   clientNumber?: string;
   devicePhone?: string;
+  collectionMethod?: ClientCollectionMethod;
   institution: ClientInstitution;
   credentials: {
     bank: ClientCredentialBank;
@@ -46,6 +53,7 @@ export interface UpdateClientPayload {
   phoneCompany?: string;
   clientNumber?: string;
   devicePhone?: string;
+  collectionMethod?: ClientCollectionMethod;
   institution: ClientInstitution;
   credentials: {
     bank: ClientCredentialBank;
@@ -95,6 +103,7 @@ export interface ClientRecord {
   phoneCompany?: string | null;
   clientNumber?: string | null;
   devicePhone?: string | null;
+  collectionMethod?: ClientCollectionMethod | null;
   profileImage?: string | null;
   institution: ClientInstitution;
   createdAt: string;
@@ -164,4 +173,35 @@ export interface ClientLoanRecord {
     address: string;
     email: string;
   };
+}
+
+export interface ClientCollectionReportRow {
+  clientId: string;
+  clientNumber: string;
+  clientName: string;
+  activeLoansCount: number;
+  lateLoansCount: number;
+  totalLoansCount: number;
+  capitalPending: number;
+  interestPending: number;
+  totalDue: number;
+  nextDueDate: string | null;
+  collectionMethod: ClientCollectionMethod | null;
+  institution: ClientInstitution;
+  frequencies: LoanFrequency[];
+}
+
+export interface ClientCollectionReportResponse {
+  message: string;
+  filters: {
+    frequency: LoanFrequency | null;
+    collectionMethod: ClientCollectionMethod | null;
+    institution: ClientInstitution | null;
+  };
+  summary: {
+    clientsCount: number;
+    totalCapitalPending: number;
+    totalInterestPending: number;
+  };
+  data: ClientCollectionReportRow[];
 }

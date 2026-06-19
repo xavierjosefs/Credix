@@ -6,6 +6,10 @@ import {
   getLoans,
   registerLoanPayment,
 } from "../service/loan.service.js";
+import {
+  generateDisbursementReceiptPdf,
+  generatePaymentReceiptPdf,
+} from "../service/report.service.js";
 
 export const createLoanController = async (req: Request, res: Response) => {
   try {
@@ -113,10 +117,84 @@ export const getLoansController = async (req: Request, res: Response) => {
   }
 };
 
+export const getPaymentReceiptPdfController = async (req: Request, res: Response) => {
+  try {
+    const loanId = normalizeRouteParam(req.params.loanId);
+    const paymentId = normalizeRouteParam(req.params.paymentId);
+
+    if (!loanId || !paymentId) {
+      return res.status(400).json({
+        message: "Loan id and payment id are required",
+      });
+    }
+
+    const pdf = await generatePaymentReceiptPdf({
+      loanId,
+      paymentId,
+      ...(normalizeQueryParam(req.query.method) ? { method: normalizeQueryParam(req.query.method) } : {}),
+    });
+
+    return sendPdfResponse(res, pdf.buffer, pdf.fileName);
+  } catch (error: any) {
+    return res.status(400).json({
+      message: "Error generating payment receipt",
+      error: error.message,
+    });
+  }
+};
+
+export const getDisbursementReceiptPdfController = async (req: Request, res: Response) => {
+  try {
+    const loanId = normalizeRouteParam(req.params.loanId);
+
+    if (!loanId) {
+      return res.status(400).json({
+        message: "Loan id is required",
+      });
+    }
+
+    const movementId = normalizeQueryParam(req.query.movementId);
+    const amount = normalizeQueryParam(req.query.amount);
+    const issuedAt = normalizeQueryParam(req.query.issuedAt);
+    const method = normalizeQueryParam(req.query.method);
+    const mode = normalizeQueryParam(req.query.mode);
+
+    const pdf = await generateDisbursementReceiptPdf(loanId, {
+      ...(movementId ? { movementId } : {}),
+      ...(amount ? { amount } : {}),
+      ...(issuedAt ? { issuedAt } : {}),
+      ...(method ? { method } : {}),
+      ...(mode ? { mode } : {}),
+    });
+
+    return sendPdfResponse(res, pdf.buffer, pdf.fileName);
+  } catch (error: any) {
+    return res.status(400).json({
+      message: "Error generating disbursement receipt",
+      error: error.message,
+    });
+  }
+};
+
 function normalizeRouteParam(value: string | string[] | undefined) {
   if (Array.isArray(value)) {
     return value[0];
   }
 
   return value;
+}
+
+function normalizeQueryParam(value: unknown) {
+  if (Array.isArray(value)) {
+    const firstValue = value[0];
+    return typeof firstValue === "string" ? firstValue : undefined;
+  }
+
+  return typeof value === "string" ? value : undefined;
+}
+
+function sendPdfResponse(res: Response, pdfBuffer: Buffer, fileName: string) {
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+  return res.status(200).send(pdfBuffer);
 }

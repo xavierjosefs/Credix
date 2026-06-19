@@ -6,6 +6,7 @@ import { getCashMovementsService } from "@/app/src/modules/cash/services/cash.se
 import AppSidebar from "@/app/src/modules/dashboard/components/AppSidebar";
 import TablePagination from "@/app/src/modules/shared/components/TablePagination";
 import { usePagination } from "@/app/src/modules/shared/hooks/usePagination";
+import { openPdfReport } from "@/app/src/modules/shared/services/report.service";
 import {
   formatCashMethod,
   formatCashRefId,
@@ -139,16 +140,25 @@ export default function CashPageView() {
 
   const handleOpenCashReport = () => {
     setOpeningReport(true);
-    router.push(
-      `/cash/report?${new URLSearchParams({
-        mode: filterMode,
+    setError(null);
+
+    void openPdfReport(
+      `/cash/report/pdf?${new URLSearchParams({
         ...(filterMode === "day" ? { day: selectedDay } : {}),
         ...(filterMode === "month" ? { month: selectedMonth } : {}),
         ...(filterMode === "year" ? { year: selectedYear } : {}),
         ...(selectedAdmin !== "ALL" ? { admin: selectedAdmin } : {}),
         ...(query.trim() ? { q: query.trim() } : {}),
       }).toString()}`
-    );
+    )
+      .catch((openError) => {
+        const message =
+          openError instanceof Error ? openError.message : "No se pudo abrir el reporte de caja.";
+        setError(message);
+      })
+      .finally(() => {
+        setOpeningReport(false);
+      });
   };
 
   const handleOpenMovementReport = (movement: CashMovementRecord) => {
@@ -157,13 +167,22 @@ export default function CashPageView() {
     }
 
     setOpeningReceiptId(movement.id);
+    setError(null);
 
     if (movement.type === "INCOME" && movement.paymentId) {
-      router.push(
-        `/loans/${movement.loanId}/payments/${movement.paymentId}/receipt?${new URLSearchParams({
+      void openPdfReport(
+        `/loan/${movement.loanId}/payments/${movement.paymentId}/receipt/pdf?${new URLSearchParams({
           method: movement.method,
         }).toString()}`
-      );
+      )
+        .catch((openError) => {
+          const message =
+            openError instanceof Error ? openError.message : "No se pudo abrir el reporte.";
+          setError(message);
+        })
+        .finally(() => {
+          setOpeningReceiptId(null);
+        });
 
       return;
     }
@@ -172,14 +191,23 @@ export default function CashPageView() {
       const mode =
         movement.description === "Monto agregado a préstamo existente" ? "TOPUP" : "NEW";
 
-      router.push(
-        `/loans/${movement.loanId}/disbursement?${new URLSearchParams({
+      void openPdfReport(
+        `/loan/${movement.loanId}/disbursement/pdf?${new URLSearchParams({
+          movementId: movement.id,
           amount: String(movement.amount),
           issuedAt: movement.createdAt,
           method: movement.method,
           mode,
         }).toString()}`
-      );
+      )
+        .catch((openError) => {
+          const message =
+            openError instanceof Error ? openError.message : "No se pudo abrir el reporte.";
+          setError(message);
+        })
+        .finally(() => {
+          setOpeningReceiptId(null);
+        });
     }
   };
 

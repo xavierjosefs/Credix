@@ -13,6 +13,7 @@ import TablePagination from "@/app/src/modules/shared/components/TablePagination
 import { usePagination } from "@/app/src/modules/shared/hooks/usePagination";
 import type {
   ClientBankAccountInput,
+  ClientCollectionMethod,
   ClientCredentialBank,
   ClientInstitution,
   ClientLoanRecord,
@@ -40,6 +41,12 @@ const credentialBankOptions: Array<{ value: ClientCredentialBank; label: string 
   { value: "BHD", label: "BHD" },
   { value: "CARIBE", label: "Banco Caribe" },
 ];
+const collectionMethodOptions: Array<{ value: ClientCollectionMethod; label: string }> = [
+  { value: "CAJERO", label: "Cajero" },
+  { value: "DEPOSITO", label: "Deposito" },
+  { value: "EFECTIVO", label: "Efectivo" },
+  { value: "TRANSFERENCIA", label: "Transferencia" },
+];
 const inputClassName =
   "h-12 w-full rounded-2xl border border-[#d9e2ed] bg-white px-4 text-[1rem] text-[#25384f] outline-none transition placeholder:text-[#8f9db0] focus:border-[#bfd0e3] focus:ring-4 focus:ring-[#edf4fb]";
 
@@ -56,6 +63,7 @@ type ClientEditFormState = {
   phoneCompany: string;
   clientNumber: string;
   devicePhone: string;
+  collectionMethod: ClientCollectionMethod;
   institution: ClientInstitution;
   credentialBank: ClientCredentialBank;
   username: string;
@@ -476,6 +484,7 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
                       <p>ID: {client.cedula}</p>
                       <p>{client.email}</p>
                       <p>{formatInstitution(client.institution)}</p>
+                      <p>{formatCollectionMethod(client.collectionMethod)}</p>
                       <p>{client.phoneCompany || "Compania no registrada"}</p>
                     </div>
                   </div>
@@ -622,6 +631,21 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
                           placeholder="Telefono a trabajar"
                         />
                       </Field>
+                      <Field label="Metodo de Cobro">
+                        <select
+                          value={editForm.collectionMethod}
+                          onChange={(event) =>
+                            handleFormFieldChange("collectionMethod", event.target.value)
+                          }
+                          className={inputClassName}
+                        >
+                          {collectionMethodOptions.map((method) => (
+                            <option key={method.value} value={method.value}>
+                              {method.label}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
                     </div>
                   ) : (
                     <DetailGrid
@@ -633,6 +657,7 @@ export default function ClientDetailPageView({ clientId }: { clientId: string })
                         { label: "Numero de cliente", value: client.clientNumber || "No registrado" },
                         { label: "Fecha de nacimiento", value: formatDate(client.birthDate) },
                         { label: "Telefono a trabajar", value: client.devicePhone || "No registrado" },
+                        { label: "Metodo de cobro", value: formatCollectionMethod(client.collectionMethod) },
                         { label: "Teléfono principal", value: client.phone },
                         { label: "Compañía telefónica", value: client.phoneCompany || "No registrada" },
                         { label: "Teléfono secundario", value: client.phone2 || "No registrado" },
@@ -1042,6 +1067,7 @@ function buildEditForm(client: ClientRecord): ClientEditFormState {
     phoneCompany: client.phoneCompany ?? "",
     clientNumber: client.clientNumber ?? "",
     devicePhone: client.devicePhone ?? "",
+    collectionMethod: client.collectionMethod ?? "EFECTIVO",
     institution: client.institution,
     credentialBank: client.credentials?.bank ?? "BANRESERVAS",
     username: client.credentials?.username ?? "",
@@ -1071,6 +1097,7 @@ function buildUpdatePayload(
     email: form.email.trim(),
     phone: form.phone.trim(),
     institution: form.institution,
+    collectionMethod: form.collectionMethod,
     ...(form.clientNumber.trim() ? { clientNumber: form.clientNumber.trim() } : {}),
     ...(form.devicePhone.trim() ? { devicePhone: form.devicePhone.trim() } : {}),
     ...(form.phoneCompany.trim() ? { phoneCompany: form.phoneCompany.trim() } : {}),
@@ -1362,6 +1389,21 @@ function formatInstitution(institution: ClientInstitution) {
       return "Guardia";
     default:
       return "Particular";
+  }
+}
+
+function formatCollectionMethod(collectionMethod?: ClientCollectionMethod | null) {
+  switch (collectionMethod) {
+    case "CAJERO":
+      return "Cajero";
+    case "DEPOSITO":
+      return "Deposito";
+    case "TRANSFERENCIA":
+      return "Transferencia";
+    case "EFECTIVO":
+      return "Efectivo";
+    default:
+      return "No registrado";
   }
 }
 

@@ -9,6 +9,7 @@ import {
 } from "@/app/src/modules/loan/services/loan.service";
 import TablePagination from "@/app/src/modules/shared/components/TablePagination";
 import { usePagination } from "@/app/src/modules/shared/hooks/usePagination";
+import { openPdfReport } from "@/app/src/modules/shared/services/report.service";
 import type { PaymentMethod } from "@/app/src/modules/loan/types/loan.types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -162,8 +163,8 @@ export default function LoanDetailPageView({ loanId }: { loanId: string }) {
       setCustomInterestDays("");
       setSelectedInterestMode("REAL");
       setPaymentSuccess("Pago registrado correctamente.");
-      router.push(
-        `/loans/${loan.id}/payments/${paymentResponse.data.payment.id}/receipt?${new URLSearchParams(
+      await openPdfReport(
+        `/loan/${loan.id}/payments/${paymentResponse.data.payment.id}/receipt/pdf?${new URLSearchParams(
           {
             method: paymentMethod,
           }
