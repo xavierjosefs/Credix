@@ -1,7 +1,14 @@
-import { Prisma } from '@prisma/client';
+import {
+  LoanStatus,
+  LoanType,
+  PaymentFrequency,
+  Prisma,
+} from '@prisma/client';
 import prisma from '../prisma/prisma.js';
 import { encrypt } from '../utils/encryption.js';
 import type {
+  ClientReportFiltersDto,
+  CollectionMethod,
   CreateClientDto,
   CredentialBank,
   GetClientDto,
@@ -16,6 +23,13 @@ import {
   decryptManyClientCredentials,
   type ClientWithRelations,
 } from './client.helpers.js';
+import {
+  calculateLoanAccruedInterest,
+  calculateRemainingInstallmentInterest,
+  loanRelationsInclude,
+  type LoanWithRelations,
+  roundMoney,
+} from './loan.helpers.js';
 
 const validInstitutions: Institution[] = [
   'POLICIA',
@@ -33,6 +47,15 @@ const validCredentialBanks: CredentialBank[] = [
   'CARIBE',
 ];
 
+const validCollectionMethods: CollectionMethod[] = [
+  'CAJERO',
+  'DEPOSITO',
+  'EFECTIVO',
+  'TRANSFERENCIA',
+];
+
+const validPaymentFrequencies: PaymentFrequency[] = ['MONTHLY', 'BIWEEKLY'];
+
 export const createClient = async (data: CreateClientDto) => {
   const {
     name,
@@ -45,6 +68,7 @@ export const createClient = async (data: CreateClientDto) => {
     phoneCompany,
     clientNumber,
     devicePhone,
+    collectionMethod,
     profileImage,
     institution,
     credentials,
@@ -57,6 +81,10 @@ export const createClient = async (data: CreateClientDto) => {
 
   if (!credentials.bank || !validCredentialBanks.includes(credentials.bank)) {
     throw new Error('Invalid credential bank');
+  }
+
+  if (collectionMethod && !validCollectionMethods.includes(collectionMethod)) {
+    throw new Error('Invalid collection method');
   }
 
   const existing = await prisma.client.findFirst({
@@ -90,6 +118,7 @@ export const createClient = async (data: CreateClientDto) => {
         ...(phoneCompany && { phoneCompany }),
         ...(clientNumber && { clientNumber }),
         ...(devicePhone && { devicePhone }),
+        ...(collectionMethod && { collectionMethod }),
         ...(profileImage && { profileImage }),
         institution,
       },
@@ -191,6 +220,7 @@ export const updateClient = async (id: string, data: UpdateClientDto) => {
     phoneCompany,
     clientNumber,
     devicePhone,
+    collectionMethod,
     profileImage,
     institution,
     credentials,
@@ -233,6 +263,10 @@ export const updateClient = async (id: string, data: UpdateClientDto) => {
     throw new Error('Invalid credential bank');
   }
 
+  if (collectionMethod && !validCollectionMethods.includes(collectionMethod)) {
+    throw new Error('Invalid collection method');
+  }
+
   const parsedBirthDate = new Date(birthDate);
 
   if (Number.isNaN(parsedBirthDate.getTime())) {
@@ -253,6 +287,7 @@ export const updateClient = async (id: string, data: UpdateClientDto) => {
         phoneCompany: phoneCompany || null,
         clientNumber: clientNumber || null,
         devicePhone: devicePhone || null,
+        collectionMethod: collectionMethod || null,
         institution,
         ...(profileImage !== undefined
           ? {
@@ -306,3 +341,150 @@ export const updateClient = async (id: string, data: UpdateClientDto) => {
 
   return decryptClientCredentials(updatedWithRelations);
 };
+
+export const getClientCollectionReport = async (filters: ClientReportFiltersDto) => {
+  const { frequency, collectionMethod, institution } = filters;
+
+  if (frequency && !validPaymentFrequencies.includes(frequency)) {
+    throw new Error('Invalid frequency');
+  }
+
+  if (collectionMethod && !validCollectionMethods.includes(collectionMethod)) {
+    throw new Error('Invalid collection method');
+  }
+
+  if (institution && !validInstitutions.includes(institution)) {
+    throw new Error('Invalid institution');
+  }
+
+  const loans = await prisma.loan.findMany({
+    where: {
+      status: {
+        not: LoanStatus.PAID,
+      },
+      ...(frequency ? { frequency } : {}),
+      client: {
+        ...(collectionMethod ? { collectionMethod } : {}),
+        ...(institution ? { institution } : {}),
+      },
+    },
+    include: loanRelationsInclude,
+    orderBy: [
+      {
+        client: {
+          name: 'asc',
+        },
+      },
+      {
+        createdAt: 'asc',
+      },
+    ],
+  });
+
+  const rowsByClient = new Map<
+    string,
+    {
+      clientId: string;
+      clientNumber: string;
+      clientName: string;
+      activeLoansCount: number;
+      lateLoansCount: number;
+      totalLoansCount: number;
+      capitalPending: number;
+      interestPending: number;
+      totalDue: number;
+      nextDueDate: Date | null;
+      collectionMethod: CollectionMethod | null;
+      institution: Institution;
+      frequencies: PaymentFrequency[];
+    }
+  >();
+
+  for (const loan of loans) {
+    const capitalPending = getLoanPendingPrincipal(loan);
+    const interestPending = getLoanPendingInterest(loan);
+    const existingRow = rowsByClient.get(loan.clientId);
+
+    if (!existingRow) {
+      rowsByClient.set(loan.clientId, {
+        clientId: loan.clientId,
+        clientNumber: loan.client.clientNumber?.trim() || 'Sin numero',
+        clientName: loan.client.name,
+        activeLoansCount: loan.status === LoanStatus.ACTIVE ? 1 : 0,
+        lateLoansCount: loan.status === LoanStatus.LATE ? 1 : 0,
+        totalLoansCount: 1,
+        capitalPending,
+        interestPending,
+        totalDue: roundMoney(capitalPending + interestPending),
+        nextDueDate: loan.status === LoanStatus.PAID ? null : loan.nextDueDate,
+        collectionMethod: loan.client.collectionMethod ?? null,
+        institution: loan.client.institution,
+        frequencies: [loan.frequency],
+      });
+      continue;
+    }
+
+    existingRow.activeLoansCount += loan.status === LoanStatus.ACTIVE ? 1 : 0;
+    existingRow.lateLoansCount += loan.status === LoanStatus.LATE ? 1 : 0;
+    existingRow.totalLoansCount += 1;
+    existingRow.capitalPending = roundMoney(existingRow.capitalPending + capitalPending);
+    existingRow.interestPending = roundMoney(existingRow.interestPending + interestPending);
+    existingRow.totalDue = roundMoney(existingRow.capitalPending + existingRow.interestPending);
+
+    if (loan.status !== LoanStatus.PAID) {
+      if (!existingRow.nextDueDate || loan.nextDueDate < existingRow.nextDueDate) {
+        existingRow.nextDueDate = loan.nextDueDate;
+      }
+    }
+
+    if (!existingRow.frequencies.includes(loan.frequency)) {
+      existingRow.frequencies.push(loan.frequency);
+    }
+  }
+
+  const rows = Array.from(rowsByClient.values()).sort((first, second) =>
+    first.clientName.localeCompare(second.clientName, 'es')
+  );
+
+  return {
+    filters: {
+      frequency: frequency ?? null,
+      collectionMethod: collectionMethod ?? null,
+      institution: institution ?? null,
+    },
+    summary: {
+      clientsCount: rows.length,
+      totalCapitalPending: roundMoney(rows.reduce((sum, row) => sum + row.capitalPending, 0)),
+      totalInterestPending: roundMoney(rows.reduce((sum, row) => sum + row.interestPending, 0)),
+    },
+    data: rows,
+  };
+};
+
+function getLoanPendingPrincipal(loan: LoanWithRelations) {
+  if (loan.type === LoanType.INSTALLMENT) {
+    return roundMoney(
+      loan.installments.reduce((sum, installment) => {
+        const principalCoveredBefore = Math.max(
+          roundMoney(installment.paidAmount - installment.interestPortion),
+          0
+        );
+        const remainingPrincipal = roundMoney(
+          Math.max(installment.principalPortion - principalCoveredBefore, 0)
+        );
+
+        return sum + remainingPrincipal;
+      }, 0)
+    );
+  }
+
+  return roundMoney(loan.remainingBalance);
+}
+
+function getLoanPendingInterest(loan: LoanWithRelations) {
+  if (loan.type === LoanType.INSTALLMENT) {
+    return calculateRemainingInstallmentInterest(loan);
+  }
+
+  return calculateLoanAccruedInterest(loan, new Date());
+}

@@ -13,6 +13,10 @@ export function useLogin() {
 
       const res = await loginService(data);
 
+      if (!res?.data?.token || !res?.data?.user) {
+        throw new Error("La respuesta del login no contiene una sesion valida.");
+      }
+
       saveSession({
         token: res.data.token,
         user: res.data.user,
@@ -24,7 +28,7 @@ export function useLogin() {
 
     } catch (error) {
       console.error("Login error", error);
-      alert("Credenciales incorrectas");
+      alert(error instanceof Error ? error.message : "No se pudo iniciar sesion");
     } finally {
       setLoading(false);
     }

@@ -41,6 +41,7 @@ model Client {
   phoneCompany String?
   clientNumber String? @unique
   devicePhone  String?
+  collectionMethod CollectionMethod?
 
   profileImage String?
   institution Institution
@@ -224,6 +225,13 @@ enum Institution {
   MEDICO
   GUARDIA
   PARTICULAR
+}
+
+enum CollectionMethod {
+  CAJERO
+  DEPOSITO
+  EFECTIVO
+  TRANSFERENCIA
 }
 
 enum CredentialBank {

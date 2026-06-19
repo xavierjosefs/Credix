@@ -10,6 +10,7 @@ import {
 import type { ClientLoanRecord, ClientRecord } from "@/app/src/modules/client/types/client.types";
 import AppSidebar from "@/app/src/modules/dashboard/components/AppSidebar";
 import { useCreateLoan } from "@/app/src/modules/loan/hooks/useCreateLoan";
+import { openPdfReport } from "@/app/src/modules/shared/services/report.service";
 import type {
   LoanType,
   PaymentFrequency,
@@ -289,8 +290,8 @@ export default function NewLoanPageView() {
         ? Math.max(response.data.remainingBalance - principalAmount, 0)
         : 0;
 
-    router.push(
-      `/loans/${response.data.id}/disbursement?${new URLSearchParams({
+    await openPdfReport(
+      `/loan/${response.data.id}/disbursement/pdf?${new URLSearchParams({
         amount: String(principalAmount),
         issuedAt: operationDate,
         method: form.method,
@@ -299,6 +300,8 @@ export default function NewLoanPageView() {
         previousBalance: String(previousBalance),
       }).toString()}`
     );
+
+    router.push(`/loans/${response.data.id}`);
   };
 
   const isFormValid =

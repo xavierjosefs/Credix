@@ -9,6 +9,7 @@ import { useRef, useState } from "react";
 import { useCreateClient } from "../hooks/useCreateClient";
 import type {
   ClientBankAccountInput,
+  ClientCollectionMethod,
   ClientCredentialBank,
   ClientInstitution,
   CreateClientPayload,
@@ -39,6 +40,12 @@ const institutionOptions: Array<{ value: ClientInstitution; label: string }> = [
   { value: "GUARDIA", label: "Guardia" },
   { value: "PARTICULAR", label: "Particular" },
 ];
+const collectionMethodOptions: Array<{ value: ClientCollectionMethod; label: string }> = [
+  { value: "CAJERO", label: "Cajero" },
+  { value: "DEPOSITO", label: "Deposito" },
+  { value: "EFECTIVO", label: "Efectivo" },
+  { value: "TRANSFERENCIA", label: "Transferencia" },
+];
 
 type BankAccountFormItem = ClientBankAccountInput & {
   id: string;
@@ -62,6 +69,7 @@ const initialFormState = {
   phoneCompany: "",
   clientNumber: "",
   devicePhone: "",
+  collectionMethod: "EFECTIVO" as ClientCollectionMethod,
   institution: "PARTICULAR" as ClientInstitution,
   credentialBank: "BANRESERVAS" as ClientCredentialBank,
   username: "",
@@ -300,6 +308,23 @@ export default function NewClientPageView() {
                         className={inputClassName}
                         required
                       />
+                    </Field>
+
+                    <Field label="Metodo de Cobro">
+                      <select
+                        value={form.collectionMethod}
+                        onChange={(event) =>
+                          handleFieldChange("collectionMethod", event.target.value)
+                        }
+                        className={inputClassName}
+                        required
+                      >
+                        {collectionMethodOptions.map((method) => (
+                          <option key={method.value} value={method.value}>
+                            {method.label}
+                          </option>
+                        ))}
+                      </select>
                     </Field>
                   </div>
                 </div>
@@ -617,6 +642,7 @@ function buildPayload(
     email: form.email.trim(),
     phone: form.phone.trim(),
     institution: form.institution,
+    collectionMethod: form.collectionMethod,
     ...(form.clientNumber.trim() ? { clientNumber: form.clientNumber.trim() } : {}),
     ...(form.devicePhone.trim() ? { devicePhone: form.devicePhone.trim() } : {}),
     ...(form.phoneCompany.trim() ? { phoneCompany: form.phoneCompany.trim() } : {}),

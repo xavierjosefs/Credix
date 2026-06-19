@@ -6,6 +6,12 @@ export type Institution =
   | "GUARDIA"
   | "PARTICULAR";
 
+export type CollectionMethod =
+  | "CAJERO"
+  | "DEPOSITO"
+  | "EFECTIVO"
+  | "TRANSFERENCIA";
+
 export type CredentialBank = "BANRESERVAS" | "POPULAR" | "BHD" | "CARIBE";
 
 export interface CreateClientDto {
@@ -20,6 +26,7 @@ export interface CreateClientDto {
   phoneCompany?: string
   clientNumber?: string
   devicePhone?: string
+  collectionMethod?: CollectionMethod
 
   profileImage?: string
   institution: Institution
@@ -52,6 +59,7 @@ export interface UpdateClientDto {
   phoneCompany?: string
   clientNumber?: string
   devicePhone?: string
+  collectionMethod?: CollectionMethod
   profileImage?: string
   institution: Institution
   credentials: {
@@ -64,4 +72,10 @@ export interface UpdateClientDto {
     accountNumber: string
     accountType: string
   }[]
+}
+
+export interface ClientReportFiltersDto {
+  frequency?: "MONTHLY" | "BIWEEKLY"
+  collectionMethod?: CollectionMethod
+  institution?: Institution
 }

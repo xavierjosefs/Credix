@@ -1,7 +1,20 @@
 import type { Request, Response } from "express";
-import { createClient, getAllClients, getClient, getClientById, updateClient } from "../service/client.service.js";
-import type { CreateClientDto, GetClientDto, UpdateClientDto } from "../dto/client.dto.js";
+import {
+    createClient,
+    getAllClients,
+    getClient,
+    getClientById,
+    getClientCollectionReport,
+    updateClient
+} from "../service/client.service.js";
+import type {
+    ClientReportFiltersDto,
+    CreateClientDto,
+    GetClientDto,
+    UpdateClientDto
+} from "../dto/client.dto.js";
 import { uploadProfileImage } from "../service/upload.service.js";
+import { generateClientCollectionReportPdf } from "../service/report.service.js";
 
 export const createClientController = async (req: Request, res: Response) => {
     try {
@@ -90,6 +103,34 @@ export const getClientByIdController = async (req: Request, res: Response) => {
     }
 }
 
+export const getClientCollectionReportController = async (req: Request, res: Response) => {
+    try {
+        const result = await getClientCollectionReport(req.query as ClientReportFiltersDto);
+
+        return res.status(200).json({
+            message: "Client collection report retrieved successfully",
+            ...result
+        });
+    } catch (error: any) {
+        return res.status(400).json({
+            message: "Error retrieving client collection report",
+            error: error.message
+        });
+    }
+}
+
+export const getClientCollectionReportPdfController = async (req: Request, res: Response) => {
+    try {
+        const pdf = await generateClientCollectionReportPdf(req.query as ClientReportFiltersDto);
+        return sendPdfResponse(res, pdf.buffer, pdf.fileName);
+    } catch (error: any) {
+        return res.status(400).json({
+            message: "Error generating client collection report",
+            error: error.message
+        });
+    }
+}
+
 export const updateClientController = async (req: Request, res: Response) => {
     try {
         const clientId = normalizeRouteParam(req.params.id);
@@ -162,4 +203,10 @@ function normalizeClientPayload(body: Request["body"]): CreateClientDto | Update
                 ? body.profileImage
                 : undefined,
     };
+}
+
+function sendPdfResponse(res: Response, pdfBuffer: Buffer, fileName: string) {
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${fileName}"`);
+    return res.status(200).send(pdfBuffer);
 }

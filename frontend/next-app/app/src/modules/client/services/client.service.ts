@@ -1,6 +1,7 @@
 import { getAuthToken } from "@/app/src/modules/auth/services/session.service";
 import { buildApiUrl } from "@/app/src/modules/shared/config/api";
 import type {
+  ClientCollectionReportResponse,
   ClientLoanRecord,
   ClientRecord,
   CreateClientPayload,
@@ -41,6 +42,10 @@ export async function createClientService(
 
   if (data.devicePhone) {
     formData.set("devicePhone", data.devicePhone);
+  }
+
+  if (data.collectionMethod) {
+    formData.set("collectionMethod", data.collectionMethod);
   }
 
   formData.set("credentials", JSON.stringify(data.credentials));
@@ -197,6 +202,10 @@ export async function updateClientService(
     formData.set("devicePhone", data.devicePhone);
   }
 
+  if (data.collectionMethod) {
+    formData.set("collectionMethod", data.collectionMethod);
+  }
+
   if (data.profileImage) {
     formData.set("profileImage", data.profileImage);
   }
@@ -228,6 +237,53 @@ export async function updateClientService(
   }
 
   return payload.data;
+}
+
+export async function getClientCollectionReportService(filters?: {
+  frequency?: "MONTHLY" | "BIWEEKLY";
+  collectionMethod?: "CAJERO" | "DEPOSITO" | "EFECTIVO" | "TRANSFERENCIA";
+  institution?: "POLICIA" | "PENSIONADO" | "EDUCACION" | "MEDICO" | "GUARDIA" | "PARTICULAR";
+}): Promise<ClientCollectionReportResponse> {
+  const token = getAuthToken();
+
+  if (!token) {
+    throw new Error("Tu sesion expiro. Inicia sesion nuevamente.");
+  }
+
+  const searchParams = new URLSearchParams();
+
+  if (filters?.frequency) {
+    searchParams.set("frequency", filters.frequency);
+  }
+
+  if (filters?.collectionMethod) {
+    searchParams.set("collectionMethod", filters.collectionMethod);
+  }
+
+  if (filters?.institution) {
+    searchParams.set("institution", filters.institution);
+  }
+
+  const response = await fetch(
+    `${buildApiUrl("/client/report")}${searchParams.size > 0 ? `?${searchParams.toString()}` : ""}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      credentials: "include",
+    }
+  );
+
+  const payload = (await response.json()) as ClientCollectionReportResponse & {
+    error?: string;
+  };
+
+  if (!response.ok) {
+    throw new Error(payload.error || payload.message || "No se pudo generar el reporte.");
+  }
+
+  return payload;
 }
 
 function resolveSearchParam(query: string) {
