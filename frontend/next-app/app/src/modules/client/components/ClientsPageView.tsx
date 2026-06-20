@@ -17,7 +17,6 @@ import { downloadPdfReport } from "@/app/src/modules/shared/services/report.serv
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { useClients } from "../hooks/useClients";
 
@@ -49,20 +48,9 @@ export default function ClientsPageView({ initialQuery = "" }: { initialQuery?: 
   const clientsPagination = usePagination(visibleClients, 10);
 
   useEffect(() => {
-    const trimmedQuery = initialQuery.trim();
-
-    if (trimmedQuery) {
-      void searchClients(trimmedQuery);
-      return;
-    }
-
-    void reloadClients();
-  }, [initialQuery, reloadClients, searchClients]);
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    await applyFilters();
-  };
+    const trimmedInitialQuery = initialQuery.trim();
+    setQuery(trimmedInitialQuery);
+  }, [initialQuery]);
 
   const handleClear = async () => {
     setQuery("");
@@ -118,6 +106,16 @@ export default function ClientsPageView({ initialQuery = "" }: { initialQuery?: 
       setApplyingFilters(false);
     }
   };
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      void applyFilters();
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [query, frequencyFilter, collectionMethodFilter, institutionFilter]);
 
   const handleOpenClientReport = async () => {
     try {
@@ -189,10 +187,7 @@ export default function ClientsPageView({ initialQuery = "" }: { initialQuery?: 
                   </p>
                 </div>
 
-                <form
-                  onSubmit={handleSubmit}
-                  className="grid w-full max-w-[1080px] gap-3 lg:grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,180px))]"
-                >
+                <div className="grid w-full max-w-[1080px] gap-3 lg:grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,180px))]">
                   <div className="relative">
                     <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#92a1b5]">
                       <SearchIcon />
@@ -251,13 +246,6 @@ export default function ClientsPageView({ initialQuery = "" }: { initialQuery?: 
 
                   <div className="flex flex-wrap gap-3 lg:col-span-4 lg:justify-end">
                     <button
-                      type="submit"
-                      disabled={searching || applyingFilters}
-                      className="inline-flex h-12 items-center justify-center rounded-xl bg-[#102844] px-5 text-sm font-semibold text-white transition hover:bg-[#183757] disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      {searching || applyingFilters ? "Aplicando..." : "Aplicar filtros"}
-                    </button>
-                    <button
                       type="button"
                       onClick={handleClear}
                       disabled={searching || applyingFilters || openingReport}
@@ -274,7 +262,7 @@ export default function ClientsPageView({ initialQuery = "" }: { initialQuery?: 
                       {openingReport ? "Generando PDF..." : "Generar PDF"}
                     </button>
                   </div>
-                </form>
+                </div>
               </div>
 
               {activeQuery && !error ? (
