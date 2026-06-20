@@ -1,9 +1,11 @@
+import chromium from "@sparticuz/chromium";
 import { CashMovementType, LoanStatus, LoanType, PaymentMethod } from "@prisma/client";
 import prisma from "../prisma/prisma.js";
 import { getCashMovements } from "./cash.service.js";
 import { getClientCollectionReport } from "./client.service.js";
 import { enrichLoan, loanRelationsInclude, roundMoney } from "./loan.helpers.js";
 import puppeteer, {} from "puppeteer";
+import puppeteerCore from "puppeteer-core";
 let browserPromise = null;
 export async function generateClientCollectionReportPdf(filters) {
     const report = await getClientCollectionReport(filters);
@@ -339,12 +341,28 @@ async function renderPdfFromHtml(html, orientation = "portrait") {
 }
 async function getBrowser() {
     if (!browserPromise) {
-        browserPromise = puppeteer.launch({
-            headless: true,
-            args: ["--no-sandbox", "--disable-setuid-sandbox"],
-        });
+        browserPromise = launchBrowser();
     }
     return browserPromise;
+}
+async function launchBrowser() {
+    const isVercel = Boolean(process.env.VERCEL || process.env.AWS_REGION);
+    if (isVercel) {
+        return puppeteerCore.launch({
+            args: chromium.args,
+            executablePath: await chromium.executablePath(),
+            defaultViewport: {
+                width: 1280,
+                height: 720,
+                deviceScaleFactor: 1,
+            },
+            headless: true,
+        });
+    }
+    return puppeteer.launch({
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
 }
 function buildHtmlDocument({ title, body, orientation = "portrait", }) {
     return `

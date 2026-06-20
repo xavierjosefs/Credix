@@ -1,3 +1,4 @@
+import chromium from "@sparticuz/chromium";
 import { CashMovementType, LoanStatus, LoanType, PaymentMethod } from "@prisma/client";
 import type { ClientReportFiltersDto } from "../dto/client.dto.js";
 import type { GetCashMovementsDto } from "../dto/cash.dto.js";
@@ -6,6 +7,7 @@ import { getCashMovements } from "./cash.service.js";
 import { getClientCollectionReport } from "./client.service.js";
 import { enrichLoan, loanRelationsInclude, roundMoney } from "./loan.helpers.js";
 import puppeteer, { type Browser } from "puppeteer";
+import puppeteerCore from "puppeteer-core";
 
 type CashReportFilters = GetCashMovementsDto & {
   admin?: string;
@@ -434,13 +436,32 @@ async function renderPdfFromHtml(
 
 async function getBrowser() {
   if (!browserPromise) {
-    browserPromise = puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
+    browserPromise = launchBrowser();
   }
 
   return browserPromise;
+}
+
+async function launchBrowser(): Promise<Browser> {
+  const isVercel = Boolean(process.env.VERCEL || process.env.AWS_REGION);
+
+  if (isVercel) {
+    return puppeteerCore.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      defaultViewport: {
+        width: 1280,
+        height: 720,
+        deviceScaleFactor: 1,
+      },
+      headless: true,
+    });
+  }
+
+  return puppeteer.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
 }
 
 function buildHtmlDocument({
